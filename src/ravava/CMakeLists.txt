@@ -362,6 +362,7 @@ if(RAVAVA_BUILD_TESTS)
     add_test(NAME net_sim_compare_dtx    COMMAND net_sim_test compare dtx)
     ravava_test(volume_test STUB audio_device_stub SOURCES Player.cpp ${_core})
     ravava_test(format_test STUB audio_device_stub SOURCES Player.cpp ${_core})
+    ravava_test(mic_event_test STUB audio_device_stub SOURCES Recorder.cpp MusicPlayer.cpp OpusCodec.cpp AudioProcessor.cpp)
     ravava_test(mic_gain_test STUB audio_device_stub SOURCES Recorder.cpp MusicPlayer.cpp OpusCodec.cpp AudioProcessor.cpp)
     ravava_test(conference_test STUB audio_device_stub SOURCES ConferencePlayer.cpp Player.cpp ${_core})      # real time, ~20 s
     ravava_test(music_monitor_test STUB audio_device_stub SOURCES Recorder.cpp Player.cpp MusicPlayer.cpp JitterBuffer.cpp OpusCodec.cpp AudioProcessor.cpp)

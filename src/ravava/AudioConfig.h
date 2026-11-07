@@ -50,6 +50,11 @@ struct AudioConfig
                                 //bursts of lost packets far better than inband FEC, but it only turns on from ~32 kbps and costs bitrate and CPU.
     int maxBandwidth = 1105;     //OPUS_BANDWIDTH_FULLBAND (1101 NB .. 1105 FB). was 3002 = OPUS_SIGNAL_MUSIC, which Opus rejects as a bandwidth
 
+    // ---- microphone taken by someone else (a phone call, another app, an iOS interruption) ----
+    bool automaticResumeAfterFreeMic = true;    // the Recorder stops while somebody else has the microphone and tells it (Recorder::SetMicEventHandler).
+                                                // true = it opens the microphone again 2 s after it became free; false = only the Free event, the
+                                                // application decides (Recorder::ResumeMic())
+
     // ---- Android routing ----
     bool androidCallMode = true;//Android only. true = like a call app (WhatsApp): MODE_IN_COMMUNICATION, Bluetooth handsfree, the phone keeps
                                 //the microphone and speaker together. Side effect: the system treats the phone as "in a call", other apps'

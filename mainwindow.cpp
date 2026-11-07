@@ -359,6 +359,11 @@ void MainWindow::initAudio()
         QMetaObject::invokeMethod(this, [this, b]{ onReadEncodedBuffer(b); }, Qt::QueuedConnection);
     });
 
+    // the microphone taken by a call / another app (runs on the recorder's watchdog thread; automaticResumeAfterFreeMic restarts it)
+    m_pAudioRecorder->SetMicEventHandler([](MicEvent e, MicReason r){
+        qDebug() << "Microphone event:" << (e == MicEvent::Busy ? "busy (cannot start)" : e == MicEvent::Interrupted ? "interrupted" : "free") << "reason" << int(r);
+    });
+
     m_AudioConfig.Bitrate = ui->BitRate_comboBox->currentText().toInt();    //ui->BitRate_comboBox(ui->BitRate_comboBox->currentIndex());
     m_AudioConfig.frameMs  = ui->frameMS_comboBox->currentText().toInt();
     m_AudioConfig.useDtx = ui->useDtx_checkBox->checkState();

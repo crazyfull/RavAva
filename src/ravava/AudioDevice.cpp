@@ -41,8 +41,12 @@
 namespace ravava {
 
 // what miniaudio tells about a device (started / stopped / rerouted...), for the log. Not called from the audio callback.
+static std::atomic<bool> g_osInterrupted{false};     // iOS: an audio session interruption is going on
+
 static void onNotification(const ma_device_notification *n)
 {
+    if(n->type == ma_device_notification_type_interruption_began) g_osInterrupted = true;
+    else if(n->type == ma_device_notification_type_interruption_ended) g_osInterrupted = false;
     static const char *names[] = {"started", "stopped", "rerouted", "interruption began", "interruption ended", "unlocked"};
     const int t = int(n->type);
     RAVAVA_INFO("%s device %s", n->pDevice->type == ma_device_type_capture ? "capture" : "playback",
@@ -198,8 +202,6 @@ struct AudioInput::Impl
     unsigned lastCbTotal = 0;           // DeviceMoved() (GUI thread)
     int stalledPolls = 0;               // consecutive DeviceMoved() calls that saw no new callback
     std::atomic<unsigned> zeroCb{0};    // consecutive all-zero capture callbacks (audio thread)
-    int zeroReopens = 0;                // DeviceMoved(): re-opens because of silence in a row
-    int zeroPolls = 0;
     std::string deviceId;
     Callback cb;
 
@@ -331,7 +333,7 @@ bool AudioInput::Start(int sampleRate, int channels, int periodMs, Callback cb, 
     d->opened = true;
     d->activeId = -1;
     d->cbCount = 0;
-    d->cbTotal = 0; d->lastCbTotal = 0; d->stalledPolls = 0; d->zeroCb = 0; d->zeroReopens = 0; d->zeroPolls = 0;
+    d->cbTotal = 0; d->lastCbTotal = 0; d->stalledPolls = 0; d->zeroCb = 0;
     {
         char nm[256] = {0};
         std::lock_guard<std::mutex> lk(d->nameMutex);
@@ -381,6 +383,59 @@ std::string AudioInput::ActiveDevice() const
 #endif
 }
 
+bool AudioInput::Interrupted(MicReason *why) const
+{
+    MicReason w = MicReason::Unknown;
+    bool taken = false;
+#ifdef RAVAVA_ANDROID
+    if(d->running && android::IsPhoneBusy()){ taken = true; w = MicReason::PhoneCall; }
+    else if(d->running && d->zeroCb.load(std::memory_order_relaxed) > 150){ taken = true; w = MicReason::OtherApp; }   // ~1.5 s of digital silence: Android 10+ silences a recorder that another app took over
+#elif defined(MA_APPLE_MOBILE)
+    if(d->running && g_osInterrupted.load()){ taken = true; w = MicReason::SystemInterruption; }
+#endif
+    if(taken && why) *why = w;
+    return taken;
+}
+
+MicAvailability OsMicAvailability(MicReason *why)
+{
+#ifdef RAVAVA_ANDROID
+    int r = 0;
+    const int a = android::MicAvailabilityOs(&r);
+    if(a < 0) return MicAvailability::Unknown;
+    if(a == 0) return MicAvailability::Free;
+    if(why) *why = r == 1 ? MicReason::PhoneCall : MicReason::OtherApp;
+    return MicAvailability::Busy;
+#elif defined(MA_APPLE_MOBILE)
+    if(g_osInterrupted.load()){ if(why) *why = MicReason::SystemInterruption; return MicAvailability::Busy; }
+    return MicAvailability::Free;
+#else
+    (void)why;
+    return MicAvailability::Unknown;
+#endif
+}
+
+bool ProbeMicrophone(const std::string &deviceId, int sampleRate, int channels)
+{
+    AudioInput in;
+    in.SetDevice(deviceId);
+    std::atomic<int> calls{0}, sound{0};
+    if(!in.Start(sampleRate, channels, 10, [&](const int16_t *pcm, uint32_t frames){
+            calls++;
+            for(size_t i = 0; i < size_t(frames) * size_t(channels); ++i)
+                if(pcm[i] != 0){ sound++; break; }
+        }, nullptr))
+        return false;
+    for(int i = 0; i < 25 && calls < 5; ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    in.Stop();
+#ifdef RAVAVA_ANDROID
+    return sound > 0;                   // a silenced stream "works" but only gives zeros
+#else
+    return calls >= 5;
+#endif
+}
+
 bool AudioInput::DeviceMoved()
 {
 #ifdef RAVAVA_ANDROID
@@ -399,22 +454,9 @@ bool AudioInput::DeviceMoved()
     if(!d->voiceRoute)
         android::MediaRouteTick();
     if(android::IsPhoneBusy()){         // the phone app owns the audio: nothing to re-open now, but right after the call
-        d->stalledPolls = 0; d->zeroPolls = 0;
+        d->stalledPolls = 0;
         d->lastCbTotal = d->cbTotal.load(std::memory_order_relaxed);
         return false;
-    }
-    // callbacks that deliver only zeros (about 2 s): the system muted the stream, e.g. after a call. Back off if the room is
-    // really silent digital zero (some phones): 3 tries, then one every ~30 s
-    if(d->zeroCb.load(std::memory_order_relaxed) > 150){
-        const int need = d->zeroReopens < 3 ? 2 : 30;
-        if(++d->zeroPolls >= need){
-            d->zeroPolls = 0; d->zeroReopens++;
-            d->zeroCb.store(0, std::memory_order_relaxed);
-            RAVAVA_WARN("capture: only silence from the microphone, re-opening it - %s", android::DescribeRouteState().c_str());
-            return true;
-        }
-    }else{
-        d->zeroPolls = 0; d->zeroReopens = 0;
     }
     const unsigned total = d->cbTotal.load(std::memory_order_relaxed);
     if(total == d->lastCbTotal){

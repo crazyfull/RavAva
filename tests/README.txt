@@ -41,6 +41,9 @@ Stress / fuzz (run under sanitizers; ~25 s plain, ~1-2 min with TSan or ASan+UBS
   g++ -std=c++17 -O1 -g -pthread -fsanitize=thread -I/usr/include/opus -Isrc tests/stress_test.cpp tests/stub/audio_device_stub.cpp src/ravava/Player.cpp src/ravava/MusicPlayer.cpp src/ravava/JitterBuffer.cpp src/ravava/OpusCodec.cpp src/ravava/AudioProcessor.cpp -lopus -o stress_tsan
   (same with -fsanitize=address,undefined for ASan/UBSan)
 
+Microphone events (Busy at Start, Interrupted, Free from the OS or by probing, automatic resume after 2 s / ResumeMic):
+  g++ -std=c++17 -O1 -pthread -I/usr/include/opus -Isrc tests/mic_event_test.cpp tests/stub/audio_device_stub.cpp src/ravava/Recorder.cpp src/ravava/MusicPlayer.cpp src/ravava/OpusCodec.cpp src/ravava/AudioProcessor.cpp -lopus -o mic_event_test
+
 Microphone gain (real Recorder + Opus, fake mic; 100 = unchanged, 50 = -12 dB, 200 = +12 dB, 0 = mute, no click on a jump):
   g++ -std=c++17 -O1 -pthread -I/usr/include/opus -Isrc tests/mic_gain_test.cpp tests/stub/audio_device_stub.cpp src/ravava/Recorder.cpp src/ravava/MusicPlayer.cpp src/ravava/OpusCodec.cpp src/ravava/AudioProcessor.cpp -lopus -o mic_gain_test
 
