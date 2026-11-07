@@ -1,14 +1,12 @@
 # Builds the pure-native (no Qt) Android demo of RavAva.
 #
-# Place this demo folder as:
+# Place the demo folder as:
 #   crazyfull/RavAva/android4-demo/
 #
-# IMPORTANT: GitHub only runs workflows that live under the REPO ROOT
-#   .github/workflows/
-# So after extracting the zip, copy (or move) this file to:
-#   crazyfull/RavAva/.github/workflows/build-native-android.yml
+# IMPORTANT: Copy this workflow to the REPO ROOT:
+#   .github/workflows/build-native-android.yml
 #
-# Trigger: Actions tab → "Build Native Android Demo" → Run workflow
+# Trigger: Actions → "Build Native Android Demo" → Run workflow
 
 name: Build Native Android Demo
 
@@ -42,18 +40,17 @@ jobs:
           elif [ -d android5-native-demo ]; then
             echo "dir=android5-native-demo" >> $GITHUB_OUTPUT
           else
-            echo "Neither android4-demo nor android5-native-demo found in the repository root."
-            echo "Place the demo folder next to src/ and miniaudio/."
+            echo "Neither android4-demo nor android5-native-demo found."
             ls -la
             exit 1
           fi
-          echo "Using demo folder: $(grep dir= $GITHUB_OUTPUT)"
+          echo "Using: $(grep dir= $GITHUB_OUTPUT)"
 
-      - name: Verify RavAva sources are present
+      - name: Verify RavAva sources
         run: |
-          test -f src/ravava/Recorder.h || { echo "src/ravava/Recorder.h missing – is this the RavAva repo?"; exit 1; }
+          test -f src/ravava/Recorder.h || { echo "src/ravava/Recorder.h missing"; exit 1; }
           test -f miniaudio/miniaudio.c  || { echo "miniaudio/miniaudio.c missing"; exit 1; }
-          test -f "${{ steps.demo.outputs.dir }}/app/src/main/cpp/CMakeLists.txt" || { echo "Demo CMakeLists missing"; exit 1; }
+          test -f "${{ steps.demo.outputs.dir }}/app/src/main/cpp/CMakeLists.txt" || exit 1
           echo "Sources OK"
 
       - name: Skip unwanted ABI
@@ -65,7 +62,7 @@ jobs:
             echo "run=true" >> $GITHUB_OUTPUT
           else
             echo "run=false" >> $GITHUB_OUTPUT
-            echo "Skipping $CURRENT (user asked for $REQUESTED)"
+            echo "Skipping $CURRENT (requested: $REQUESTED)"
           fi
 
       - name: Set up JDK 17
@@ -75,17 +72,46 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Setup Android SDK
-        if: steps.skip.outputs.run == 'true'
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK 26 + CMake 3.22 + build-tools
+      # ------------------------------------------------------------------
+      # Use the pre-installed Android SDK on the runner (no setup-android
+      # action). The old "tools" package no longer exists and breaks
+      # android-actions/setup-android@v3.
+      # ------------------------------------------------------------------
+      - name: Configure Android SDK path
         if: steps.skip.outputs.run == 'true'
         run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-34" "build-tools;34.0.0"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
-          echo "ANDROID_NDK=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+          # GitHub-hosted runners already have the Android SDK
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+          ls /usr/local/lib/android/sdk || true
+          ls /usr/local/lib/android/sdk/cmdline-tools || true
+
+      - name: Install NDK, CMake, platform & build-tools
+        if: steps.skip.outputs.run == 'true'
+        run: |
+          SDK=/usr/local/lib/android/sdk
+          # Prefer the newest cmdline-tools available on the runner
+          SM=$(find $SDK/cmdline-tools -name sdkmanager | sort -V | tail -1)
+          if [ -z "$SM" ]; then
+            echo "sdkmanager not found, downloading cmdline-tools..."
+            curl -sL -o /tmp/cmdtools.zip \
+              https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+            mkdir -p $SDK/cmdline-tools/latest
+            unzip -q /tmp/cmdtools.zip -d /tmp/cmdtools
+            mv /tmp/cmdtools/cmdline-tools/* $SDK/cmdline-tools/latest/
+            SM=$SDK/cmdline-tools/latest/bin/sdkmanager
+          fi
+          echo "Using sdkmanager: $SM"
+          yes | $SM --licenses >/dev/null 2>&1 || true
+          $SM --install \
+            "ndk;26.1.10909125" \
+            "cmake;3.22.1" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
+          echo "ANDROID_NDK_HOME=$SDK/ndk/26.1.10909125" >> $GITHUB_ENV
+          echo "ANDROID_NDK=$SDK/ndk/26.1.10909125" >> $GITHUB_ENV
 
       - name: Make gradlew executable
         if: steps.skip.outputs.run == 'true'
@@ -102,8 +128,8 @@ jobs:
 
           APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
           if [ -z "$APK" ]; then
-            echo "No APK produced. Last 100 lines of build log:"
-            tail -100 build.log
+            echo "===== No APK produced. Last 120 lines of log: ====="
+            tail -120 build.log
             exit 1
           fi
           echo "APK=$APK" >> $GITHUB_ENV
@@ -113,13 +139,13 @@ jobs:
         if: steps.skip.outputs.run == 'true'
         run: |
           APK="${{ env.APK }}"
-          AAPT2=$(find $ANDROID_HOME/build-tools -name aapt2 | sort -V | tail -1)
+          AAPT2=$(find /usr/local/lib/android/sdk/build-tools -name aapt2 | sort -V | tail -1)
           echo "Using $AAPT2"
           "$AAPT2" dump badging "$APK" | tee badging.txt
           grep -q "package: name='com.ravava.demo'" badging.txt
           (grep -q "sdkVersion:'21'" badging.txt || grep -q "minSdkVersion:'21'" badging.txt)
           grep -q "android.permission.RECORD_AUDIO" badging.txt
-          echo "APK looks good"
+          echo "APK OK"
 
       - name: Upload APK
         if: steps.skip.outputs.run == 'true'
@@ -133,7 +159,5 @@ jobs:
         if: steps.skip.outputs.run == 'true'
         run: |
           echo "### Native Demo – ${{ matrix.abi }}" >> $GITHUB_STEP_SUMMARY
-          echo "- APK uploaded as artifact \`RavAva-NativeDemo-${{ matrix.abi }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- minSdk: 21 (Android 5.0)" >> $GITHUB_STEP_SUMMARY
-          echo "- WebRTC: OFF" >> $GITHUB_STEP_SUMMARY
-          echo "- Modes: Loopback + UDP" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifact: \`RavAva-NativeDemo-${{ matrix.abi }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- minSdk 21 · WebRTC OFF · Loopback + UDP" >> $GITHUB_STEP_SUMMARY
