@@ -39,6 +39,9 @@ std::string g_stubInputDevice, g_stubOutputDevice;
 static std::mutex g_stubDeviceMutex;        // SetDevice() runs on the device-switch worker thread, the test reads from its own
 std::atomic<int> g_stubInputStarts{0}, g_stubOutputStarts{0};         // how many times the device was opened
 std::atomic<int> g_stubInputFailStarts{0}, g_stubOutputFailStarts{0};  // test switch: the next N Start() calls fail
+std::atomic<bool> g_stubMicBusy{false};      // test switch: somebody else has the microphone (Start fails, probes fail)
+std::atomic<int> g_stubMicOs{-1};           // test switch: what the "OS" says while waiting: -1 unknown (probe), 0 free, 1 busy
+std::atomic<bool> g_stubInterrupted{false}; // test switch: the open microphone is taken (Interrupted())
 std::atomic<bool> g_stubInputMoved{false}, g_stubOutputMoved{false};  // test switch: "the system moved the stream"
 std::string StubInputDevice()  { std::lock_guard<std::mutex> lk(g_stubDeviceMutex); return g_stubInputDevice; }
 std::string StubOutputDevice() { std::lock_guard<std::mutex> lk(g_stubDeviceMutex); return g_stubOutputDevice; }
@@ -58,6 +61,7 @@ AudioInput::~AudioInput() { Stop(); }
 bool AudioInput::Start(int rate, int ch, int ms, Callback cb, std::string*)
 {
     Stop();
+    if(g_stubMicBusy) return false;
     d->run = true; d->running = true;
     d->t = std::thread([=]{
         const uint32_t frames = uint32_t(rate * ms / 1000);
@@ -98,6 +102,9 @@ bool AudioInput::Start(int rate, int ch, int ms, Callback cb, std::string*)
     return true;
 }
 void AudioInput::Stop() { d->run = false; if(d->t.joinable()) d->t.join(); d->running = false; }
+bool AudioInput::Interrupted(MicReason *why) const { if(why) *why = MicReason::PhoneCall; return d->running && g_stubInterrupted; }
+MicAvailability OsMicAvailability(MicReason *why){ if(why) *why = MicReason::PhoneCall; const int v = g_stubMicOs; return v < 0 ? MicAvailability::Unknown : (v ? MicAvailability::Busy : MicAvailability::Free); }
+bool ProbeMicrophone(const std::string &, int, int){ return !g_stubMicBusy; }
 bool AudioInput::DeviceMoved() { return g_stubInputMoved.exchange(false); }
 std::string AudioInput::ActiveDevice() const { return "Stub mic"; }
 bool AudioInput::IsRunning() const { return d->running; }

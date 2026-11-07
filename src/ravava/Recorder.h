@@ -28,6 +28,16 @@
 
 namespace ravava {
 
+// What happened to the microphone (Recorder::SetMicEventHandler). The handler runs on the recorder's watchdog thread: keep it short, hand
+// the work to your own thread / the GUI.
+enum class MicEvent {
+    Busy,           // Start() (or a resume) could not get the microphone: someone else has it (or it is missing)
+    Interrupted,    // the microphone was working and the OS (or another app / a phone call) took it: the recorder stopped it. MicReason says why
+    Free            // it can be used again (the OS said so, or a test open of the microphone worked). With automaticResumeAfterFreeMic the
+                    // recorder starts it again 2 s later, otherwise call ResumeMic()
+};
+enum class MicState { Off, Active, Waiting /* busy / interrupted, waiting for it to be free */, Free /* free, not resumed yet */ };
+
 // Capture side: microphone (or a music file) -> opus packets. No Qt.
 // The packet handler is called on the AUDIO THREAD, once per datagram:
 // 3 byte audio header + opus packet (see VoicePacket.h); the network layer puts it into a UDP packet (net/Packet.h). Keep it short; hand the data over to your
@@ -77,6 +87,9 @@ private:
     int m_keepIntervalMs = 3000;      // GUI thread
     std::atomic<int> m_failedOpens{0};      // consecutive failed (re)opens of the microphone
     std::atomic<bool> m_deviceWanted{false};  // recording is on (set by Start, cleared by Stop): SetInputDevice() re-opens the mic
+    std::atomic<int> m_micState{int(MicState::Off)};
+    int64_t m_freeAtMs = 0;           // watchdog: when the Free event was sent
+    std::function<void(MicEvent, MicReason)> m_micHandler;
     DeviceSwitcher m_switcher;        // moves the microphone to another device off the GUI thread
     AudioInput m_input;               // declared last: destroyed first
 
@@ -133,6 +146,14 @@ public:
     // By default the recorder runs KeepDevice() itself about once a second while it is started (own thread), so the 1 s timer in the app
     // is no longer needed (calling KeepDevice() yourself as well is harmless). false = only your calls repair the device. Any thread.
     void SetAutoKeepDevice(bool on) { m_autoKeep.store(on, std::memory_order_relaxed); }
+    // Somebody else took the microphone (phone call, another app, iOS interruption) or it can't be started: the recorder stops it and
+    // calls this (once per change) with Busy / Interrupted. When the microphone is free again it calls it with Free: where the OS can tell
+    // (Android 7+, iOS) from the OS, elsewhere by trying to open the microphone every second. Then, if AudioConfig::automaticResumeAfterFreeMic
+    // is true, the microphone is started again after 2 s. Call before Start(). The handler runs on the recorder's watchdog thread.
+    void SetMicEventHandler(std::function<void(MicEvent, MicReason)> handler) { m_micHandler = std::move(handler); }
+    MicState GetMicState() const { return MicState(m_micState.load()); }
+    // After a Free event (automaticResumeAfterFreeMic = false), or whenever you want to try again: opens the microphone now. Any thread.
+    void ResumeMic();
     // the microphone that is REALLY in use (see AudioInput::ActiveDevice), "" = unknown. GUI thread.
     std::string ActiveInputDevice() const { return m_input.ActiveDevice(); }
 private:

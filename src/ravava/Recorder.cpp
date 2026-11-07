@@ -92,7 +92,6 @@ void Recorder::Start()
     m_input.SetDevice(m_cfg.inputDeviceId);
     setChoice(m_cfg.inputDeviceId);
     m_deviceWanted = true;
-    m_failedOpens = 0;
     requestOpen(choice());        // on the device worker: opening the microphone can take seconds (Android)
     m_watchdog.Start([this]{ if(m_autoKeep.load(std::memory_order_relaxed)) KeepDevice(); });
     RAVAVA_INFO("recorder: Start() took %d ms%s", int(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count()),
@@ -122,6 +121,8 @@ bool Recorder::SetInputDevice(const std::string &deviceId)
 
 void Recorder::requestOpen(const std::string &deviceId)
 {
+    m_failedOpens = 0;
+    m_micState = int(MicState::Active);
     m_switcher.Request(deviceId, [this](const std::string &id){
         m_input.Stop();                 // returns when the capture callback is guaranteed to be finished
         m_cache.clear();                // the part of a frame captured from the old device is dropped
@@ -132,35 +133,78 @@ void Recorder::requestOpen(const std::string &deviceId)
     });
 }
 
+void Recorder::ResumeMic()
+{
+    if(!m_deviceWanted)
+        return;
+    const int st = m_micState.load();
+    if(st == int(MicState::Waiting) || st == int(MicState::Free))
+        requestOpen(choice());
+}
+
 void Recorder::KeepDevice()
 {
-    std::lock_guard<std::mutex> lk(m_keepMutex);        // GUI thread and watchdog
-    if(!m_deviceWanted || m_switcher.Busy())
-        return;
-    const bool running = m_input.IsRunning();
-    if(running && !m_input.DeviceMoved())
-        return;                         // all is well
-    const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    if(now - m_lastKeepMs < m_keepIntervalMs)
-        return;                         // not in a loop: at most one re-open per interval
-    m_lastKeepMs = now;
+    MicEvent ev = MicEvent::Busy;
+    MicReason why = MicReason::Unknown;
+    bool fire = false;
+    {
+        std::unique_lock<std::mutex> lk(m_keepMutex, std::try_to_lock);     // the GUI thread and the watchdog: never wait (a probe takes ~0.5 s)
+        if(!lk.owns_lock() || !m_deviceWanted || m_switcher.Busy())
+            return;
+        const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        const int st = m_micState.load();
 
-    std::string id = choice();
-    if(!running && m_failedOpens >= 2){
-        id.clear();
-        RAVAVA_WARN("recorder: the chosen microphone can't be opened, using the system default");
-    }else if(!running){
-        RAVAVA_WARN("recorder: the microphone is not running, opening it again");
-    }else{
-        RAVAVA_WARN("recorder: re-opening the chosen microphone");
+        if(st == int(MicState::Waiting)){
+            // somebody else has the microphone: is it free again? The OS knows (Android 7+, iOS), else try to open it
+            MicReason w = MicReason::Unknown;
+            const MicAvailability a = OsMicAvailability(&w);
+            const bool free = a == MicAvailability::Free ||
+                              (a == MicAvailability::Unknown && ProbeMicrophone(choice(), m_cfg.inputRate, m_cfg.channels));
+            if(free && m_deviceWanted){
+                m_micState = int(MicState::Free);
+                m_freeAtMs = now;
+                ev = MicEvent::Free; fire = true;
+                RAVAVA_INFO("recorder: the microphone is free again");
+            }
+        }else if(st == int(MicState::Free)){
+            if(m_cfg.automaticResumeAfterFreeMic && now - m_freeAtMs >= 2000){
+                RAVAVA_INFO("recorder: starting the microphone again");
+                requestOpen(choice());
+            }
+        }else{
+            const bool running = m_input.IsRunning();
+            MicReason w = MicReason::Unknown;
+            if(running && m_input.Interrupted(&w)){
+                RAVAVA_WARN("recorder: the microphone was taken by the system (reason %d), stopping it", int(w));
+                m_input.Stop();
+                m_cache.clear();
+                m_marker = true;
+                m_micState = int(MicState::Waiting);
+                ev = MicEvent::Interrupted; why = w; fire = true;
+            }else if(!running && m_failedOpens >= 1){
+                OsMicAvailability(&why);                // (the reason, if the OS knows it)
+                RAVAVA_WARN("recorder: the microphone can't be started (busy or missing), waiting for it");
+                m_micState = int(MicState::Waiting);
+                ev = MicEvent::Busy; fire = true;
+            }else if(!running || m_input.DeviceMoved()){
+                if(now - m_lastKeepMs < m_keepIntervalMs)
+                    return;                         // not in a loop: at most one re-open per interval
+                m_lastKeepMs = now;
+                if(running) RAVAVA_WARN("recorder: re-opening the chosen microphone");
+                else RAVAVA_WARN("recorder: the microphone is not running, opening it again");
+                requestOpen(choice());
+            }
+        }
     }
-    requestOpen(id);
+    if(fire && m_micHandler)
+        m_micHandler(ev, why);                  // outside the lock: the handler may call ResumeMic()
 }
 
 void Recorder::Stop()
 {
     m_watchdog.Stop();      // first: it must not re-open the microphone while we are stopping
     m_deviceWanted = false;
+    m_micState = int(MicState::Off);
     m_switcher.Cancel();    // a switch in progress finishes first, then nothing restarts the mic
     m_input.Stop();         // returns when the callback is guaranteed to be finished
     m_musicPlayer->Release();

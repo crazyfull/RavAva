@@ -117,7 +117,10 @@ int main()
         takeRms();
         std::this_thread::sleep_for(std::chrono::milliseconds(300));
         CHECK(takeRms() == 0);                              // really silent: no packets
-        rec.KeepDevice();
+        // the failed open = "the microphone is busy": KeepDevice() waits for it (the stub says it is free at once), and 2 s after the Free
+        // event (automaticResumeAfterFreeMic) the microphone is started again
+        for(int i = 0; i < 40; i++){ rec.KeepDevice(); std::this_thread::sleep_for(std::chrono::milliseconds(100)); }
+        takeRms();
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         CHECK(takeRms() > unity * 0.7);                     // recording again
         CHECK(StubInputDevice() == "bb");

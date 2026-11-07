@@ -82,6 +82,9 @@ void ReassertRoute();
 
 // true while the phone rings / is in a real call. JNI: not the audio thread.
 bool IsPhoneBusy();
+// Who has the microphone (ask while our own capture stream is closed): 1 = busy (*reason 1 = phone call, 2 = another app), 0 = free,
+// -1 = the system can't tell (Android below 7: probe by opening it). JNI: not the audio thread.
+int MicAvailabilityOs(int *reason);
 // Media route (no call mode): after a phone call ended, drops the SCO / communication device it left behind. Rate limited, never waits.
 void MediaRouteTick();
 

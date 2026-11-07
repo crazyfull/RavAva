@@ -635,6 +635,37 @@ bool IsPhoneBusy()
     return am && phoneBusy(env, am.get());
 }
 
+// Who has the microphone, asked while OUR capture stream is closed: a phone call, or any other app recording (API 24+:
+// AudioManager.getActiveRecordingConfigurations() lists the active recordings of every app; ours is closed, so a non-empty list
+// means somebody else). Below API 24 there is nothing to ask: -1 (the caller probes by opening the microphone).
+int MicAvailabilityOs(int *reason)
+{
+    if(reason) *reason = 0;
+    Env env;
+    if(!env) return -1;
+    Ref am = audioManager(env);
+    if(!am) return -1;
+    if(phoneBusy(env, am.get())){
+        if(reason) *reason = 1;
+        return 1;
+    }
+    if(sdkInt(env) < 24)
+        return -1;
+    jmethodID get = methodOf(env, am.get(), "getActiveRecordingConfigurations", "()Ljava/util/List;");
+    if(!get) return -1;
+    Ref list(env.get(), env->CallObjectMethod(am.get(), get));
+    if(env.failed() || !list) return -1;
+    jmethodID size = methodOf(env, list.get(), "size", "()I");
+    if(!size) return -1;
+    const int n = env->CallIntMethod(list.get(), size);
+    if(env.failed()) return -1;
+    if(n > 0){
+        if(reason) *reason = 2;
+        return 1;
+    }
+    return 0;
+}
+
 void MediaRouteTick()
 {
     static int64_t lastMs = 0;

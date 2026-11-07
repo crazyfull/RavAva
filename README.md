@@ -184,6 +184,7 @@ Follow these exactly. Breaking any of them causes crashes or audio glitches.
 9. Lock-free from any thread: `SetVolume`, `SetInputGain`, `GetLevel`, `TakePeakLevel`, `GetVolume`.
 10. Control-thread only: `SetInputDevice`, `SetOutputDevice`, `KeepDevice`, `GetStats`, `Active*Device`.
 11. Call `KeepDevice()` ~once per second (or rely on the internal watchdog).
+12. Microphone taken by a call / another app: `Recorder::SetMicEventHandler` gives `Busy` / `Interrupted` / `Free` (watchdog thread, keep it short); `AudioConfig::automaticResumeAfterFreeMic` (default true) restarts it 2 s after `Free`, else call `ResumeMic()`.
 
 ### Audio Rules
 

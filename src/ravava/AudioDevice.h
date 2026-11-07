@@ -30,6 +30,15 @@ void SetOutputRouteHint(const std::string &outputDeviceId);
 // Android: AudioConfig::androidCallMode (Recorder / Player::SetConfig call it). No-op elsewhere.
 void SetAndroidCallMode(bool on);
 
+// ---- who has the microphone ------------------------------------------------------------------------------------
+enum class MicReason { Unknown = 0, PhoneCall, OtherApp, SystemInterruption };
+enum class MicAvailability { Free, Busy, Unknown };
+// Asks the OS whether somebody else holds the microphone (call after the own capture is closed). Android: phone call / another app
+// recording (API 24+); iOS: the audio session interruption (a call, Siri, an alarm) began / ended; elsewhere Unknown. *why = the reason when Busy.
+MicAvailability OsMicAvailability(MicReason *why = nullptr);
+// Really opens the microphone ("" = default) for a moment and checks that it delivers sound: the fallback where the OS can't tell. About 0.5 s, not the audio thread.
+bool ProbeMicrophone(const std::string &deviceId, int sampleRate, int channels);
+
 struct AudioDeviceInfo
 {
     std::string name;       // UTF-8, for the UI
@@ -66,6 +75,9 @@ public:
     // Bluetooth connection...) and it stayed there for two calls in a row. Call it about once a second from the GUI
     // thread; the owner then re-opens the chosen device. Always false elsewhere. Logs the route state when it is true.
     bool DeviceMoved();
+    // The open microphone was taken away by the OS and delivers nothing useful: a phone call (Android), another app silencing it
+    // (Android 10+), an iOS interruption. false elsewhere. Call about once a second, GUI / watchdog thread.
+    bool Interrupted(MicReason *why = nullptr) const;
 
 private:
     struct Impl;
