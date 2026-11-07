@@ -5,10 +5,11 @@ plugins {
 android {
     namespace 'com.ravava.demo'
     compileSdk 34
+    ndkVersion "26.1.10909125"
 
     defaultConfig {
         applicationId "com.ravava.demo"
-        minSdk 21          // Android 5.0
+        minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"

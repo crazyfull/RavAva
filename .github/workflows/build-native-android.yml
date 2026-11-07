@@ -154,8 +154,16 @@ jobs:
 
           APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
           if [ -z "$APK" ]; then
-            echo "===== No APK produced. Last 120 lines of log: ====="
-            tail -120 build.log
+            echo "===== No APK produced. Looking for CMake/native errors ====="
+            # Prefer the real CMake error if present
+            grep -n -E "error:|CMake Error|FAILED:|fatal error" build.log | tail -40 || true
+            echo "===== Last 150 lines of build.log ====="
+            tail -150 build.log
+            # Also dump cxx logs if they exist
+            find app/.cxx -name "*.log" 2>/dev/null | head -5 | while read f; do
+              echo "===== $f ====="
+              tail -80 "$f" || true
+            done
             exit 1
           fi
           echo "APK=$APK" >> $GITHUB_ENV
