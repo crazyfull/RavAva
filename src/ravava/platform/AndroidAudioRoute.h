@@ -80,6 +80,11 @@ std::string DescribeDeviceId(int deviceId, bool capture);
 // the speaker to the earpiece and silences the headset. No-op while no Bluetooth route is held. Never waits.
 void ReassertRoute();
 
+// true while the phone rings / is in a real call. JNI: not the audio thread.
+bool IsPhoneBusy();
+// Media route (no call mode): after a phone call ended, drops the SCO / communication device it left behind. Rate limited, never waits.
+void MediaRouteTick();
+
 // One line for the log: audio mode, Bluetooth SCO state, communication device. JNI: not the audio thread.
 std::string DescribeRouteState();
 

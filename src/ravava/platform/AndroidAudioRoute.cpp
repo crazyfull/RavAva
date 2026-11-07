@@ -627,6 +627,52 @@ void SetCallMode(bool on)
 
 int ModeEpoch() { return g_modeEpoch.load(std::memory_order_relaxed); }
 
+bool IsPhoneBusy()
+{
+    Env env;
+    if(!env) return false;
+    Ref am = audioManager(env);
+    return am && phoneBusy(env, am.get());
+}
+
+void MediaRouteTick()
+{
+    static int64_t lastMs = 0;
+    static bool wasInCall = false;
+    std::unique_lock<std::mutex> lk(g_routeMutex, std::try_to_lock);
+    if(!lk.owns_lock() || g_heldStreams == 0 || (g_callMode && !isA2dpChoice(g_outChoice)))
+        return;                         // only the media route (no call mode): the call route has ReassertRoute
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    const int64_t now = int64_t(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+    if(now - lastMs < 1000)
+        return;
+    lastMs = now;
+    Env env;
+    if(!env) return;
+    Ref am = audioManager(env);
+    if(!am) return;
+    jmethodID getMode = methodOf(env, am.get(), "getMode", "()I");
+    if(!getMode) return;
+    const int mode = env->CallIntMethod(am.get(), getMode);
+    if(env.failed()) return;
+    if(mode != 0){
+        wasInCall = true;               // ringing / a call (the phone app may have started SCO for it)
+        return;
+    }
+    if(!wasInCall)
+        return;
+    wasInCall = false;
+    // the call is over: drop what it left behind (SCO / communication device), else the headset stays in the poor quality
+    // handsfree profile and the microphone gets no audio
+    RAVAVA_INFO("android: the call ended, clearing the leftover call route - %s", DescribeRouteState().c_str());
+    if(sdkInt(env) >= 31)
+        callVoid(env, am.get(), "clearCommunicationDevice");
+    setSpeakerphone(env, am.get(), false);
+    setScoOn(env, am.get(), false);
+    callVoid(env, am.get(), "stopBluetoothSco");
+}
+
 // Undoes what the call route did (mode, communication device, speakerphone, SCO). The caller holds g_routeMutex.
 static void resetCallRoute(Env &env, jobject am)
 {
