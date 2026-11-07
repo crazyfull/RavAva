@@ -122,7 +122,6 @@ bool Recorder::SetInputDevice(const std::string &deviceId)
 
 void Recorder::requestOpen(const std::string &deviceId)
 {
-    SetOutputRouteHint(m_cfg.outputDeviceId);   // the speaker decides whether the microphone starts a call (Android: Bluetooth media route)
     m_switcher.Request(deviceId, [this](const std::string &id){
         m_input.Stop();                 // returns when the capture callback is guaranteed to be finished
         m_cache.clear();                // the part of a frame captured from the old device is dropped

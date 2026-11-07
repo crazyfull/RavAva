@@ -25,7 +25,7 @@ namespace ravava {
 // `id` is an opaque string that identifies the device (stable across runs, unlike the list position).
 // Empty id = the system default device. Pass it to AudioInput/AudioOutput::SetDevice().
 // Tells the platform layer which SPEAKER the app is going to use, before the microphone opens (Android: a Bluetooth "high quality"
-// speaker means no call mode and the phone's own microphone). Recorder and Player call it; applications do not need to. No-op elsewhere.
+// speaker means no call mode and the phone's own microphone). Only Player calls it (a Recorder's copy of the config can be older than the Player's choice: two writers made the route flip); applications do not need to. No-op elsewhere.
 void SetOutputRouteHint(const std::string &outputDeviceId);
 // Android: AudioConfig::androidCallMode (Recorder / Player::SetConfig call it). No-op elsewhere.
 void SetAndroidCallMode(bool on);
