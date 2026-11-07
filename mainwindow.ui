@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>459</width>
-    <height>721</height>
+    <width>457</width>
+    <height>759</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -490,7 +490,7 @@
       <x>9</x>
       <y>252</y>
       <width>441</width>
-      <height>141</height>
+      <height>171</height>
      </rect>
     </property>
     <property name="title">
@@ -539,8 +539,8 @@
       </layout>
      </item>
      <item row="1" column="0" colspan="5">
-      <layout class="QHBoxLayout" name="horizontalLayout_2">
-       <item>
+      <layout class="QGridLayout" name="gridLayout_5">
+       <item row="0" column="0">
         <widget class="QCheckBox" name="autoGain_checkBox">
          <property name="toolTip">
           <string>Automatic mic level + limiter (webrtc AGC2)</string>
@@ -550,20 +550,7 @@
          </property>
         </widget>
        </item>
-       <item>
-        <widget class="QCheckBox" name="highPass_checkBox">
-         <property name="toolTip">
-          <string>Cuts low rumble below ~100 Hz from the microphone: wind, hum, handling noise, desk knocks (webrtc high-pass filter). Applied on Start.</string>
-         </property>
-         <property name="text">
-          <string>Low-cut</string>
-         </property>
-         <property name="checked">
-          <bool>false</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
+       <item row="0" column="2">
         <widget class="QCheckBox" name="androidCallMode_checkBox">
          <property name="toolTip">
           <string>Android only. On: like WhatsApp (call mode, Bluetooth handsfree). Off: plain media mode, the phone's notification sounds are heard, no handsfree Bluetooth microphone. Applied on Start.</string>
@@ -576,14 +563,27 @@
          </property>
         </widget>
        </item>
-       <item>
+       <item row="0" column="3">
         <widget class="QCheckBox" name="Adaptive_checkBox">
          <property name="text">
           <string>Adaptive</string>
          </property>
         </widget>
        </item>
-       <item>
+       <item row="1" column="0">
+        <widget class="QCheckBox" name="highPass_checkBox">
+         <property name="toolTip">
+          <string>Cuts low rumble below ~100 Hz from the microphone: wind, hum, handling noise, desk knocks (webrtc high-pass filter). Applied on Start.</string>
+         </property>
+         <property name="text">
+          <string>Low-cut</string>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
         <widget class="QCheckBox" name="useDtx_checkBox">
          <property name="text">
           <string>useDtx</string>
@@ -599,7 +599,7 @@
          </property>
         </widget>
        </item>
-       <item>
+       <item row="1" column="3">
         <widget class="QCheckBox" name="musicMode_checkBox">
          <property name="toolTip">
           <string>Music mode: Opus is tuned for music (full bandwidth, fine treble) instead of speech. Channels, bitrate and frame size stay as set.</string>
@@ -674,9 +674,9 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>396</y>
+      <y>420</y>
       <width>441</width>
-      <height>301</height>
+      <height>311</height>
      </rect>
     </property>
     <property name="styleSheet">
