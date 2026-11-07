@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <jni.h>
 #include <atomic>
 #include <memory>
 #include <mutex>

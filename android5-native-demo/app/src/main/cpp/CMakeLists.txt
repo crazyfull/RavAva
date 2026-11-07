@@ -63,7 +63,6 @@ target_include_directories(ravava_static PUBLIC
 )
 target_compile_definitions(ravava_static PUBLIC
     RAVAVA_ANDROID=1
-    MA_NO_RUNTIME_LINKING=1
     MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1
     MA_ENABLE_AAUDIO=1
     MA_ENABLE_OPENSL=1
