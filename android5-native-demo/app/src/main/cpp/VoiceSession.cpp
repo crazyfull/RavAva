@@ -113,11 +113,11 @@ bool VoiceSession::Start(bool udpMode, int localPort,
     // Open devices (SetConfig opens the speaker; Start opens the mic)
     play_->SetConfig(&cfg_);
     rec_->SetConfig(&cfg_);
-    if (!rec_->Start()) {
-        LOGE("Recorder::Start failed");
-        lastError_ = "Recorder start failed";
-        return false;
-    }
+    rec_->SetMicEventHandler([](ravava::MicEvent e, ravava::MicReason) {
+        // Start() returns at once (the microphone opens on a worker): a busy / taken microphone is reported as an event
+        LOGE("microphone event %d (0 busy, 1 interrupted, 2 free)", int(e));
+    });
+    rec_->Start();
 
     running_ = true;
 
