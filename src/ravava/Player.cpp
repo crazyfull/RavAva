@@ -104,6 +104,8 @@ void Player::SetMixSource(AudioMixSource *src)
 void Player::SetConfig(AudioConfig *pConfig)
 {
     m_pConfig = pConfig;
+    if(pConfig)
+        SetAndroidCallMode(pConfig->androidCallMode);
     init();
 }
 
@@ -147,6 +149,7 @@ void Player::init()
     // 10ms device periods: the real buffering is done by the jitter buffer, not by the device
     m_output.SetDevice(m_pConfig->outputDeviceId);
     setChoice(m_pConfig->outputDeviceId);
+    SetOutputRouteHint(m_pConfig->outputDeviceId);   // the Player is the ONLY one that tells the platform layer which speaker is in use
     m_deviceWanted = true;
     // The speaker is opened on the device worker: on Android that takes seconds (call mode + route), which used to freeze the
     // GUI (a thread blocked for ~5 s gets the app killed). Play() accepts packets from now on, they wait in the queue until
@@ -171,6 +174,7 @@ bool Player::startDevice()
 bool Player::SetOutputDevice(const std::string &deviceId)
 {
     setChoice(deviceId);
+    SetOutputRouteHint(deviceId);               // right now, not when the worker gets to it: the microphone may be re-opening
     if(!m_deviceWanted){
         m_output.SetDevice(deviceId);   // not started yet: the next init() opens it
         return true;
@@ -181,6 +185,7 @@ bool Player::SetOutputDevice(const std::string &deviceId)
 
 void Player::requestOpen(const std::string &deviceId)
 {
+    SetOutputRouteHint(deviceId);               // before the microphone looks at it (Android: Bluetooth media route)
     m_switcher.Request(deviceId, [this](const std::string &id){
         m_output.Stop();                // returns when the audio callback is guaranteed to be finished
         m_output.SetDevice(id);

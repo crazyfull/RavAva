@@ -191,11 +191,15 @@ struct AudioInput::Impl
     std::string activeName;         // name of the device that was really opened (not Android: see ActiveDevice())
     std::atomic<int> wantedId{0};   // Android: AudioDeviceInfo id the stream was opened on (0 = system default / unknown)
     std::atomic<int> movedPolls{0}; // consecutive DeviceMoved() calls that saw another device
+    std::atomic<int> openEpoch{0};  // Android: android::ModeEpoch() when the stream was opened (the speaker choice switched call <-> media since = re-open)
     std::atomic<int> activeId{-1};  // Android: AudioDeviceInfo id the stream is REALLY on (refreshed by the audio callback)
     unsigned cbCount = 0;           // audio thread only
     std::atomic<unsigned> cbTotal{0};   // audio callbacks since Start (Android: a stream the system silently stopped has none)
     unsigned lastCbTotal = 0;           // DeviceMoved() (GUI thread)
     int stalledPolls = 0;               // consecutive DeviceMoved() calls that saw no new callback
+    std::atomic<unsigned> zeroCb{0};    // consecutive all-zero capture callbacks (audio thread)
+    int zeroReopens = 0;                // DeviceMoved(): re-opens because of silence in a row
+    int zeroPolls = 0;
     std::string deviceId;
     Callback cb;
 
@@ -207,10 +211,38 @@ struct AudioInput::Impl
         if((s->cbCount++ & 63) == 0)    // about every 0.6 s: which device is the stream really on (the system may re-route it)
             s->activeId.store(android::StreamDeviceId(pDevice->aaudio.pStreamCapture), std::memory_order_relaxed);
 #endif
+#ifdef RAVAVA_ANDROID
+        if(pInput){     // a capture stream the system muted (phone call, route change) delivers only zeros
+            const int16_t *x = static_cast<const int16_t*>(pInput);
+            bool silent = true;
+            for(ma_uint32 i = 0; i < frameCount && silent; i += 4)
+                silent = x[i] == 0;
+            if(silent) s->zeroCb.fetch_add(1, std::memory_order_relaxed);
+            else s->zeroCb.store(0, std::memory_order_relaxed);
+        }
+#endif
         if(s->cb && pInput)
             s->cb(static_cast<const int16_t*>(pInput), frameCount);
     }
 };
+
+void SetOutputRouteHint(const std::string &outputDeviceId)
+{
+#ifdef RAVAVA_ANDROID
+    android::SetOutputChoice(outputDeviceId);
+#else
+    (void)outputDeviceId;
+#endif
+}
+
+void SetAndroidCallMode(bool on)
+{
+#ifdef RAVAVA_ANDROID
+    android::SetCallMode(on);
+#else
+    (void)on;
+#endif
+}
 
 AudioInput::AudioInput() : d(new Impl) {
 
@@ -246,6 +278,7 @@ bool AudioInput::Start(int sampleRate, int channels, int periodMs, Callback cb, 
 #ifdef RAVAVA_ANDROID
     {
         int32_t aid = 0; bool voice = false, held = false;
+        d->openEpoch = android::ModeEpoch();            // read BEFORE preparing: a switch in between only costs one extra re-open
         android::PrepareStream(d->deviceId, true, &aid, &voice, &held);
         prepareMs = sinceMs();
         d->voiceRoute = held;
@@ -298,7 +331,7 @@ bool AudioInput::Start(int sampleRate, int channels, int periodMs, Callback cb, 
     d->opened = true;
     d->activeId = -1;
     d->cbCount = 0;
-    d->cbTotal = 0; d->lastCbTotal = 0; d->stalledPolls = 0;
+    d->cbTotal = 0; d->lastCbTotal = 0; d->stalledPolls = 0; d->zeroCb = 0; d->zeroReopens = 0; d->zeroPolls = 0;
     {
         char nm[256] = {0};
         std::lock_guard<std::mutex> lk(d->nameMutex);
@@ -355,10 +388,34 @@ bool AudioInput::DeviceMoved()
         android::ReassertRoute();      // the system resets the Bluetooth route on calls / USB: put it back
     if(!d->running)
         return false;
+    if(d->openEpoch.load() != android::ModeEpoch()){
+        RAVAVA_INFO("capture: the speaker route changed (call <-> Bluetooth media), re-opening the microphone for it");
+        return true;
+    }
 #ifdef RAVAVA_AAUDIO_STREAMS
     // The system can stop a stream without telling (a phone call, a USB / Bluetooth change): miniaudio then still says
     // "started" and nothing is heard until the user stops and starts again. A running stream calls back every few
     // milliseconds, so no callback during 3 polls (about 3 s) = stalled: report it, the caller re-opens the device.
+    if(!d->voiceRoute)
+        android::MediaRouteTick();
+    if(android::IsPhoneBusy()){         // the phone app owns the audio: nothing to re-open now, but right after the call
+        d->stalledPolls = 0; d->zeroPolls = 0;
+        d->lastCbTotal = d->cbTotal.load(std::memory_order_relaxed);
+        return false;
+    }
+    // callbacks that deliver only zeros (about 2 s): the system muted the stream, e.g. after a call. Back off if the room is
+    // really silent digital zero (some phones): 3 tries, then one every ~30 s
+    if(d->zeroCb.load(std::memory_order_relaxed) > 150){
+        const int need = d->zeroReopens < 3 ? 2 : 30;
+        if(++d->zeroPolls >= need){
+            d->zeroPolls = 0; d->zeroReopens++;
+            d->zeroCb.store(0, std::memory_order_relaxed);
+            RAVAVA_WARN("capture: only silence from the microphone, re-opening it - %s", android::DescribeRouteState().c_str());
+            return true;
+        }
+    }else{
+        d->zeroPolls = 0; d->zeroReopens = 0;
+    }
     const unsigned total = d->cbTotal.load(std::memory_order_relaxed);
     if(total == d->lastCbTotal){
         if(++d->stalledPolls >= 3){
@@ -559,6 +616,13 @@ bool AudioOutput::DeviceMoved()
     // The system can stop a stream without telling (a phone call, a USB / Bluetooth change): miniaudio then still says
     // "started" and nothing is heard until the user stops and starts again. A running stream calls back every few
     // milliseconds, so no callback during 3 polls (about 3 s) = stalled: report it, the caller re-opens the device.
+    if(!d->voiceRoute)
+        android::MediaRouteTick();
+    if(android::IsPhoneBusy()){         // the phone app owns the audio: re-open right after the call, not during it
+        d->stalledPolls = 0;
+        d->lastCbTotal = d->cbTotal.load(std::memory_order_relaxed);
+        return false;
+    }
     const unsigned total = d->cbTotal.load(std::memory_order_relaxed);
     if(total == d->lastCbTotal){
         if(++d->stalledPolls >= 3){

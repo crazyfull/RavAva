@@ -42,6 +42,8 @@ void Recorder::SetAudioProcessor(std::shared_ptr<AudioProcessor> aec)
 void Recorder::SetConfig(AudioConfig *pConfig)
 {
     m_pConfig = pConfig;
+    if(pConfig)
+        SetAndroidCallMode(pConfig->androidCallMode);
     init();
 }
 
