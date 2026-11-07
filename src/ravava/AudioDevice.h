@@ -47,6 +47,9 @@ struct AudioDeviceInfo
 };
 std::vector<AudioDeviceInfo> ListInputDevices();    // microphones
 std::vector<AudioDeviceInfo> ListOutputDevices();   // speakers / headphones
+// Is the device with this id still there (a Bluetooth headset that was switched off, a USB device that was pulled out)? "" (system default) is always there.
+// If the list can't be read it says true. Not the audio thread (Android: JNI).
+bool IsDeviceAvailable(const std::string &deviceId, bool capture);
 
 // ---- microphone -----------------------------------------------------------------
 // The callback runs on the real-time audio thread: don't block, don't wait on the GUI.

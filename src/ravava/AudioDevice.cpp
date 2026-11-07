@@ -184,6 +184,19 @@ std::vector<AudioDeviceInfo> ListInputDevices() { return realMicrophones(false);
 std::vector<AudioDeviceInfo> ListOutputDevices() { return listDevices(false); }
 #endif
 
+bool IsDeviceAvailable(const std::string &deviceId, bool capture)
+{
+    if(deviceId.empty())
+        return true;
+    const std::vector<AudioDeviceInfo> list = capture ? ListInputDevices() : ListOutputDevices();
+    if(list.empty())
+        return true;                    // can't tell
+    for(const AudioDeviceInfo &d : list)
+        if(d.id == deviceId)
+            return true;
+    return false;
+}
+
 // =============================================================== AudioInput
 struct AudioInput::Impl
 {
