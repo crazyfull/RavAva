@@ -1,68 +1,139 @@
+# Builds the pure-native (no Qt) Android demo of RavAva.
+#
+# Place this demo folder as:
+#   crazyfull/RavAva/android4-demo/
+#
+# IMPORTANT: GitHub only runs workflows that live under the REPO ROOT
+#   .github/workflows/
+# So after extracting the zip, copy (or move) this file to:
+#   crazyfull/RavAva/.github/workflows/build-native-android.yml
+#
+# Trigger: Actions tab → "Build Native Android Demo" → Run workflow
+
 name: Build Native Android Demo
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'android4-demo/**'
-      - 'android5-native-demo/**'
-      - 'src/ravava/**'
-      - 'miniaudio/**'
+    inputs:
+      abi:
+        description: "ABI to build (or 'all')"
+        type: choice
+        options: [all, arm64-v8a, armeabi-v7a]
+        default: all
 
 jobs:
   build:
+    name: Build ${{ matrix.abi }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        abi: [armeabi-v7a, arm64-v8a]
+        abi: [arm64-v8a, armeabi-v7a]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect demo folder
+        id: demo
+        run: |
+          if [ -d android4-demo ]; then
+            echo "dir=android4-demo" >> $GITHUB_OUTPUT
+          elif [ -d android5-native-demo ]; then
+            echo "dir=android5-native-demo" >> $GITHUB_OUTPUT
+          else
+            echo "Neither android4-demo nor android5-native-demo found in the repository root."
+            echo "Place the demo folder next to src/ and miniaudio/."
+            ls -la
+            exit 1
+          fi
+          echo "Using demo folder: $(grep dir= $GITHUB_OUTPUT)"
+
+      - name: Verify RavAva sources are present
+        run: |
+          test -f src/ravava/Recorder.h || { echo "src/ravava/Recorder.h missing – is this the RavAva repo?"; exit 1; }
+          test -f miniaudio/miniaudio.c  || { echo "miniaudio/miniaudio.c missing"; exit 1; }
+          test -f "${{ steps.demo.outputs.dir }}/app/src/main/cpp/CMakeLists.txt" || { echo "Demo CMakeLists missing"; exit 1; }
+          echo "Sources OK"
+
+      - name: Skip unwanted ABI
+        id: skip
+        run: |
+          REQUESTED="${{ github.event.inputs.abi }}"
+          CURRENT="${{ matrix.abi }}"
+          if [ "$REQUESTED" = "all" ] || [ -z "$REQUESTED" ] || [ "$REQUESTED" = "$CURRENT" ]; then
+            echo "run=true" >> $GITHUB_OUTPUT
+          else
+            echo "run=false" >> $GITHUB_OUTPUT
+            echo "Skipping $CURRENT (user asked for $REQUESTED)"
+          fi
 
       - name: Set up JDK 17
+        if: steps.skip.outputs.run == 'true'
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
       - name: Setup Android SDK
+        if: steps.skip.outputs.run == 'true'
         uses: android-actions/setup-android@v3
 
-      - name: Install NDK & CMake
+      - name: Install NDK 26 + CMake 3.22 + build-tools
+        if: steps.skip.outputs.run == 'true'
         run: |
-          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-34" "build-tools;34.0.0"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
-      - name: Grant execute permission for gradlew
-        run: |
-          # Create a minimal gradlew if the demo is inside the repo
-          DEMO_DIR=""
-          if [ -d android4-demo ]; then DEMO_DIR=android4-demo
-          elif [ -d android5-native-demo ]; then DEMO_DIR=android5-native-demo
-          else
-            echo "Demo folder not found"; exit 1
-          fi
-          echo "DEMO_DIR=$DEMO_DIR" >> $GITHUB_ENV
-          cd "$DEMO_DIR"
-          # Use the Gradle wrapper from a known good template if missing
-          if [ ! -f gradlew ]; then
-            # Install gradle wrapper via the installed gradle (or download)
-            curl -sL https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip
-            unzip -q /tmp/gradle.zip -d /tmp
-            /tmp/gradle-8.4/bin/gradle wrapper --gradle-version 8.4
-          fi
-          chmod +x gradlew
+      - name: Make gradlew executable
+        if: steps.skip.outputs.run == 'true'
+        working-directory: ${{ steps.demo.outputs.dir }}
+        run: chmod +x gradlew
 
-      - name: Build APK (${{ matrix.abi }})
-        working-directory: ${{ env.DEMO_DIR }}
+      - name: Build debug APK (${{ matrix.abi }})
+        if: steps.skip.outputs.run == 'true'
+        working-directory: ${{ steps.demo.outputs.dir }}
         run: |
           ./gradlew assembleDebug \
             -Pandroid.injected.build.abi=${{ matrix.abi }} \
-            --stacktrace
+            --stacktrace 2>&1 | tee build.log
+
+          APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          if [ -z "$APK" ]; then
+            echo "No APK produced. Last 100 lines of build log:"
+            tail -100 build.log
+            exit 1
+          fi
+          echo "APK=$APK" >> $GITHUB_ENV
+          echo "Built: $APK ($(du -h "$APK" | cut -f1))"
+
+      - name: Basic APK checks
+        if: steps.skip.outputs.run == 'true'
+        run: |
+          APK="${{ env.APK }}"
+          AAPT2=$(find $ANDROID_HOME/build-tools -name aapt2 | sort -V | tail -1)
+          echo "Using $AAPT2"
+          "$AAPT2" dump badging "$APK" | tee badging.txt
+          grep -q "package: name='com.ravava.demo'" badging.txt
+          (grep -q "sdkVersion:'21'" badging.txt || grep -q "minSdkVersion:'21'" badging.txt)
+          grep -q "android.permission.RECORD_AUDIO" badging.txt
+          echo "APK looks good"
 
       - name: Upload APK
+        if: steps.skip.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: RavAva-NativeDemo-${{ matrix.abi }}
-          path: ${{ env.DEMO_DIR }}/app/build/outputs/apk/debug/*.apk
+          path: ${{ steps.demo.outputs.dir }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - name: Summary
+        if: steps.skip.outputs.run == 'true'
+        run: |
+          echo "### Native Demo – ${{ matrix.abi }}" >> $GITHUB_STEP_SUMMARY
+          echo "- APK uploaded as artifact \`RavAva-NativeDemo-${{ matrix.abi }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- minSdk: 21 (Android 5.0)" >> $GITHUB_STEP_SUMMARY
+          echo "- WebRTC: OFF" >> $GITHUB_STEP_SUMMARY
+          echo "- Modes: Loopback + UDP" >> $GITHUB_STEP_SUMMARY
