@@ -211,6 +211,15 @@ void Player::KeepDevice()
     m_lastKeepMs = now;
 
     std::string id = choice();
+    if(!id.empty() && !IsDeviceAvailable(id, false)){
+        RAVAVA_WARN("player: the chosen speaker is gone (%s), switching to the system default", id.c_str());
+        const std::string lost = id;
+        setChoice("");
+        requestOpen("");
+        if(m_lostHandler)
+            m_lostHandler(lost);
+        return;
+    }
     if(!running && m_failedOpens >= 2){
         id.clear();
         RAVAVA_WARN("player: the chosen speaker can't be opened, using the system default");

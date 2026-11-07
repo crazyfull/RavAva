@@ -42,6 +42,7 @@ std::atomic<int> g_stubInputFailStarts{0}, g_stubOutputFailStarts{0};  // test s
 std::atomic<bool> g_stubMicBusy{false};      // test switch: somebody else has the microphone (Start fails, probes fail)
 std::atomic<int> g_stubMicOs{-1};           // test switch: what the "OS" says while waiting: -1 unknown (probe), 0 free, 1 busy
 std::atomic<bool> g_stubInterrupted{false}; // test switch: the open microphone is taken (Interrupted())
+std::atomic<bool> g_stubDeviceGone{false};  // test switch: the chosen (non-default) device has vanished (IsDeviceAvailable() says false)
 std::atomic<bool> g_stubInputMoved{false}, g_stubOutputMoved{false};  // test switch: "the system moved the stream"
 std::string StubInputDevice()  { std::lock_guard<std::mutex> lk(g_stubDeviceMutex); return g_stubInputDevice; }
 std::string StubOutputDevice() { std::lock_guard<std::mutex> lk(g_stubDeviceMutex); return g_stubOutputDevice; }
@@ -56,6 +57,7 @@ AudioInput::AudioInput() : d(new Impl) {}
 void AudioInput::SetDevice(const std::string &id) { std::lock_guard<std::mutex> lk(g_stubDeviceMutex); g_stubInputDevice = id; }
 std::vector<AudioDeviceInfo> ListInputDevices()  { return { {"Stub mic", "aa", true}, {"Stub mic 2", "bb", false} }; }
 std::vector<AudioDeviceInfo> ListOutputDevices() { return { {"Stub speaker", "cc", true}, {"Stub speaker 2", "dd", false} }; }
+bool IsDeviceAvailable(const std::string &id, bool){ return id.empty() || !g_stubDeviceGone; }
 AudioInput::~AudioInput() { Stop(); }
 
 bool AudioInput::Start(int rate, int ch, int ms, Callback cb, std::string*)

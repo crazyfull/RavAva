@@ -90,6 +90,7 @@ private:
     std::atomic<int> m_micState{int(MicState::Off)};
     int64_t m_freeAtMs = 0;           // watchdog: when the Free event was sent
     std::function<void(MicEvent, MicReason)> m_micHandler;
+    std::function<void(const std::string&)> m_lostHandler;
     DeviceSwitcher m_switcher;        // moves the microphone to another device off the GUI thread
     AudioInput m_input;               // declared last: destroyed first
 
@@ -151,6 +152,9 @@ public:
     // (Android 7+, iOS) from the OS, elsewhere by trying to open the microphone every second. Then, if AudioConfig::automaticResumeAfterFreeMic
     // is true, the microphone is started again after 2 s. Call before Start(). The handler runs on the recorder's watchdog thread.
     void SetMicEventHandler(std::function<void(MicEvent, MicReason)> handler) { m_micHandler = std::move(handler); }
+    // The chosen microphone vanished (a Bluetooth headset switched off, USB unplugged): the recorder switches to the system default microphone
+    // instead of retrying the lost one, and calls this with the lost id. It does not go back by itself: choose it again (SetInputDevice).
+    void SetDeviceLostHandler(std::function<void(const std::string &lostId)> handler) { m_lostHandler = std::move(handler); }
     MicState GetMicState() const { return MicState(m_micState.load()); }
     // After a Free event (automaticResumeAfterFreeMic = false), or whenever you want to try again: opens the microphone now. Any thread.
     void ResumeMic();
