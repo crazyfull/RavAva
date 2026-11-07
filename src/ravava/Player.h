@@ -100,6 +100,7 @@ class Player
     // so it is only touched under its own mutex (a std::string read while another thread assigns it can crash)
     std::string m_deviceChoice;
     mutable std::mutex m_choiceMutex;
+    std::function<void(const std::string&)> m_lostHandler;
     void setChoice(const std::string &id) { std::lock_guard<std::mutex> lk(m_choiceMutex); m_deviceChoice = id; }
     std::string choice() const { std::lock_guard<std::mutex> lk(m_choiceMutex); return m_deviceChoice; }
     std::mutex m_keepMutex;                 // KeepDevice() runs on the GUI thread AND on the watchdog
@@ -139,6 +140,10 @@ public:
     // device than the chosen one (Android: a notification sound, a Bluetooth connection...), or the speaker stopped (a re-open
     // failed, a phone call took the device) the chosen device is opened again. At most once per 3 s; after two failed
     // attempts in a row it falls back to the system default device (the choice in the UI is not touched).
+    // The chosen speaker vanished (a Bluetooth headset switched off, a USB device pulled out): the player does NOT keep trying to open it, it
+    // switches to the system default speaker and calls this with the id that was lost (so the UI can say so / show the default). It does not
+    // go back by itself when the device returns: choose it again (SetOutputDevice). Call before Start / SetConfig. Watchdog / GUI thread.
+    void SetDeviceLostHandler(std::function<void(const std::string &lostId)> handler) { m_lostHandler = std::move(handler); }
     void KeepDevice();
     void SetKeepIntervalMs(int ms) { m_keepIntervalMs = ms; }       // (tests)
     // By default the player runs KeepDevice() itself about once a second (own thread), so the 1 s timer in the app is no longer needed

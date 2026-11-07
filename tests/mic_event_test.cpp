@@ -15,6 +15,8 @@ static int g_fail = 0;
 
 extern std::atomic<bool> g_stubMicBusy, g_stubInterrupted;
 extern std::atomic<int> g_stubMicOs;
+extern std::atomic<bool> g_stubDeviceGone;
+std::string StubInputDevice();
 
 static std::mutex g_mx;
 static std::vector<MicEvent> g_ev;
@@ -67,6 +69,26 @@ int main()
         CHECK(waitFor([&]{ return count(MicEvent::Free) == 2; }, 4000));
         rec.Stop();
         CHECK(rec.GetMicState() == MicState::Off);
+    }
+    // the chosen microphone vanishes (headset off): the recorder goes to the system default and tells it once
+    {
+        std::printf("device lost\n");
+        g_stubMicBusy = false; g_stubInterrupted = false; g_stubMicOs = -1; g_stubDeviceGone = false;
+        AudioConfig cfg; cfg.inputDeviceId = "bb";
+        Recorder rec;
+        std::atomic<int> lost{0};
+        std::string lostId; std::mutex m;
+        rec.SetDeviceLostHandler([&](const std::string &id){ std::lock_guard<std::mutex> lk(m); lostId = id; lost++; });
+        rec.SetConfig(&cfg);
+        rec.Start();
+        CHECK(waitFor([&]{ return StubInputDevice() == "bb"; }, 2000));
+        g_stubDeviceGone = true;
+        extern std::atomic<bool> g_stubInputMoved; g_stubInputMoved = true;      // the system moved the stream
+        CHECK(waitFor([&]{ return lost == 1; }, 5000));
+        { std::lock_guard<std::mutex> lk(m); CHECK(lostId == "bb"); }
+        CHECK(waitFor([&]{ return StubInputDevice().empty(); }, 2000));        // opened on the system default now
+        rec.Stop();
+        g_stubDeviceGone = false;
     }
     std::printf(g_fail ? "FAIL (%d)\n" : "PASS\n", g_fail);
     return g_fail ? 1 : 0;

@@ -7,6 +7,7 @@ Not yet released as a number: everything below is in 0.1.0.
 ## 0.1.0 (in development)
 
 ### Added
+- `Player::SetDeviceLostHandler` / `Recorder::SetDeviceLostHandler`, `IsDeviceAvailable()`: when the chosen speaker / microphone vanishes (a Bluetooth headset switched off) the library switches to the system default device instead of re-opening the lost one in a loop, and reports the lost id.
 - Microphone events: `Recorder::SetMicEventHandler` reports `Busy` (Start could not get the microphone), `Interrupted` (a phone call / another app / an iOS interruption took it; the recorder stops it) and `Free`. Free comes from the OS where it can tell (Android 7+, iOS), elsewhere from a test open every second. `AudioConfig::automaticResumeAfterFreeMic` (default true) restarts the microphone 2 s after Free, otherwise call `Recorder::ResumeMic()`. `Recorder::GetMicState()`.
 - Android: no stream re-opening while the phone rings / is in a call; after a call in the media route the leftover SCO / communication device is cleared.
 - Standalone CMake build of the library (static by default, shared option), `RavAva::RavAva` package, headers installed to

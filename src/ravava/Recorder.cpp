@@ -147,6 +147,7 @@ void Recorder::KeepDevice()
     MicEvent ev = MicEvent::Busy;
     MicReason why = MicReason::Unknown;
     bool fire = false;
+    std::string lost;
     {
         std::unique_lock<std::mutex> lk(m_keepMutex, std::try_to_lock);     // the GUI thread and the watchdog: never wait (a probe takes ~0.5 s)
         if(!lk.owns_lock() || !m_deviceWanted || m_switcher.Busy())
@@ -187,15 +188,25 @@ void Recorder::KeepDevice()
                 m_micState = int(MicState::Waiting);
                 ev = MicEvent::Busy; fire = true;
             }else if(!running || m_input.DeviceMoved()){
-                if(now - m_lastKeepMs < m_keepIntervalMs)
-                    return;                         // not in a loop: at most one re-open per interval
-                m_lastKeepMs = now;
-                if(running) RAVAVA_WARN("recorder: re-opening the chosen microphone");
-                else RAVAVA_WARN("recorder: the microphone is not running, opening it again");
-                requestOpen(choice());
+                const std::string id = choice();
+                if(!id.empty() && !IsDeviceAvailable(id, true)){
+                    RAVAVA_WARN("recorder: the chosen microphone is gone (%s), switching to the system default", id.c_str());
+                    setChoice("");
+                    requestOpen("");
+                    lost = id;
+                }else{
+                    if(now - m_lastKeepMs < m_keepIntervalMs)
+                        return;                     // not in a loop: at most one re-open per interval
+                    m_lastKeepMs = now;
+                    if(running) RAVAVA_WARN("recorder: re-opening the chosen microphone");
+                    else RAVAVA_WARN("recorder: the microphone is not running, opening it again");
+                    requestOpen(id);
+                }
             }
         }
     }
+    if(!lost.empty() && m_lostHandler)
+        m_lostHandler(lost);
     if(fire && m_micHandler)
         m_micHandler(ev, why);                  // outside the lock: the handler may call ResumeMic()
 }
