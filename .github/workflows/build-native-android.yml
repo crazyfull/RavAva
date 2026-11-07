@@ -149,7 +149,7 @@ jobs:
         working-directory: ${{ steps.demo.outputs.dir }}
         run: |
           ./gradlew assembleDebug \
-            -Pandroid.injected.build.abi=${{ matrix.abi }} \
+            -PravavaAbi=${{ matrix.abi }} \
             --stacktrace 2>&1 | tee build.log
 
           APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
@@ -171,6 +171,7 @@ jobs:
 
       - name: Basic APK checks
         if: steps.skip.outputs.run == 'true'
+        working-directory: ${{ steps.demo.outputs.dir }}      # (APK is a path relative to the demo folder)
         run: |
           APK="${{ env.APK }}"
           AAPT2=$(find /usr/local/lib/android/sdk/build-tools -name aapt2 | sort -V | tail -1)
