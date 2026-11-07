@@ -40,17 +40,23 @@ jobs:
           elif [ -d android5-native-demo ]; then
             echo "dir=android5-native-demo" >> $GITHUB_OUTPUT
           else
-            echo "Neither android4-demo nor android5-native-demo found."
+            echo "Neither android4-demo nor android5-native-demo found in repo root."
+            echo "Contents of repo root:"
             ls -la
             exit 1
           fi
-          echo "Using: $(grep dir= $GITHUB_OUTPUT)"
+          echo "Using demo folder: $(grep dir= $GITHUB_OUTPUT)"
+          echo "Contents of demo folder:"
+          ls -la "$(grep dir= $GITHUB_OUTPUT | cut -d= -f2)"
 
       - name: Verify RavAva sources
         run: |
           test -f src/ravava/Recorder.h || { echo "src/ravava/Recorder.h missing"; exit 1; }
           test -f miniaudio/miniaudio.c  || { echo "miniaudio/miniaudio.c missing"; exit 1; }
-          test -f "${{ steps.demo.outputs.dir }}/app/src/main/cpp/CMakeLists.txt" || exit 1
+          test -f "${{ steps.demo.outputs.dir }}/app/src/main/cpp/CMakeLists.txt" || {
+            echo "Demo CMakeLists.txt missing"
+            exit 1
+          }
           echo "Sources OK"
 
       - name: Skip unwanted ABI
@@ -72,28 +78,19 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # ------------------------------------------------------------------
-      # Use the pre-installed Android SDK on the runner (no setup-android
-      # action). The old "tools" package no longer exists and breaks
-      # android-actions/setup-android@v3.
-      # ------------------------------------------------------------------
       - name: Configure Android SDK path
         if: steps.skip.outputs.run == 'true'
         run: |
-          # GitHub-hosted runners already have the Android SDK
           echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
           echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
-          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
-          ls /usr/local/lib/android/sdk || true
-          ls /usr/local/lib/android/sdk/cmdline-tools || true
+          echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "/usr/local/lib/android/sdk/platform-tools" >> $GITHUB_PATH
 
       - name: Install NDK, CMake, platform & build-tools
         if: steps.skip.outputs.run == 'true'
         run: |
           SDK=/usr/local/lib/android/sdk
-          # Prefer the newest cmdline-tools available on the runner
-          SM=$(find $SDK/cmdline-tools -name sdkmanager | sort -V | tail -1)
+          SM=$(find $SDK/cmdline-tools -name sdkmanager 2>/dev/null | sort -V | tail -1)
           if [ -z "$SM" ]; then
             echo "sdkmanager not found, downloading cmdline-tools..."
             curl -sL -o /tmp/cmdtools.zip \
@@ -113,10 +110,39 @@ jobs:
           echo "ANDROID_NDK_HOME=$SDK/ndk/26.1.10909125" >> $GITHUB_ENV
           echo "ANDROID_NDK=$SDK/ndk/26.1.10909125" >> $GITHUB_ENV
 
-      - name: Make gradlew executable
+      - name: Ensure Gradle Wrapper exists
         if: steps.skip.outputs.run == 'true'
         working-directory: ${{ steps.demo.outputs.dir }}
-        run: chmod +x gradlew
+        run: |
+          if [ -f gradlew ]; then
+            echo "gradlew already present"
+            chmod +x gradlew
+          else
+            echo "gradlew missing – creating wrapper..."
+            mkdir -p gradle/wrapper
+            # Download wrapper jar
+            curl -sL -o gradle/wrapper/gradle-wrapper.jar \
+              https://github.com/gradle/gradle/raw/v8.4.0/gradle/wrapper/gradle-wrapper.jar
+            cat > gradle/wrapper/gradle-wrapper.properties << 'PROPS'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          networkTimeout=10000
+          validateDistributionUrl=true
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          PROPS
+            # Minimal gradlew script
+            cat > gradlew << 'SCRIPT'
+          #!/bin/sh
+          APP_HOME=$(cd "$(dirname "$0")" && pwd -P)
+          CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+          exec java -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+          SCRIPT
+            chmod +x gradlew
+            echo "Wrapper created"
+          fi
+          ls -la gradlew gradle/wrapper/
 
       - name: Build debug APK (${{ matrix.abi }})
         if: steps.skip.outputs.run == 'true'
