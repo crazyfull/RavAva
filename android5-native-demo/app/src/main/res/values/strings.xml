@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RavAva Native Demo</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+    <string name="mode_loopback">Loopback (mic → speaker)</string>
+    <string name="mode_udp">UDP Voice Chat</string>
+    <string name="local_port">Local Port</string>
+    <string name="remote_ip">Remote IP</string>
+    <string name="remote_port">Remote Port</string>
+    <string name="status_idle">Idle</string>
+    <string name="status_running">Running…</string>
+    <string name="permission_required">Microphone permission is required</string>
+    <string name="notification_title">RavAva Voice</string>
+    <string name="notification_text">Voice session is active</string>
+</resources>

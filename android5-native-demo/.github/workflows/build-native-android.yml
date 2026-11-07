@@ -1,0 +1,68 @@
+name: Build Native Android Demo
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'android4-demo/**'
+      - 'android5-native-demo/**'
+      - 'src/ravava/**'
+      - 'miniaudio/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [armeabi-v7a, arm64-v8a]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK & CMake
+        run: |
+          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
+
+      - name: Grant execute permission for gradlew
+        run: |
+          # Create a minimal gradlew if the demo is inside the repo
+          DEMO_DIR=""
+          if [ -d android4-demo ]; then DEMO_DIR=android4-demo
+          elif [ -d android5-native-demo ]; then DEMO_DIR=android5-native-demo
+          else
+            echo "Demo folder not found"; exit 1
+          fi
+          echo "DEMO_DIR=$DEMO_DIR" >> $GITHUB_ENV
+          cd "$DEMO_DIR"
+          # Use the Gradle wrapper from a known good template if missing
+          if [ ! -f gradlew ]; then
+            # Install gradle wrapper via the installed gradle (or download)
+            curl -sL https://services.gradle.org/distributions/gradle-8.4-bin.zip -o /tmp/gradle.zip
+            unzip -q /tmp/gradle.zip -d /tmp
+            /tmp/gradle-8.4/bin/gradle wrapper --gradle-version 8.4
+          fi
+          chmod +x gradlew
+
+      - name: Build APK (${{ matrix.abi }})
+        working-directory: ${{ env.DEMO_DIR }}
+        run: |
+          ./gradlew assembleDebug \
+            -Pandroid.injected.build.abi=${{ matrix.abi }} \
+            --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RavAva-NativeDemo-${{ matrix.abi }}
+          path: ${{ env.DEMO_DIR }}/app/build/outputs/apk/debug/*.apk
