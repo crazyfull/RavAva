@@ -149,7 +149,7 @@ jobs:
         working-directory: ${{ steps.demo.outputs.dir }}
         run: |
           ./gradlew assembleDebug \
-            -Pandroid.injected.build.abi=${{ matrix.abi }} \
+            -PravavaAbi=${{ matrix.abi }} \
             --stacktrace 2>&1 | tee build.log
 
           APK=$(find app/build/outputs/apk -name "*.apk" | head -1)

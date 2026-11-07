@@ -23,7 +23,11 @@ android {
         }
 
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a'
+            // CI builds one ABI per job: -PravavaAbi=armeabi-v7a (the IDE-only android.injected.build.abi puts the APK somewhere else)
+            if (project.hasProperty('ravavaAbi'))
+                abiFilters project.property('ravavaAbi')
+            else
+                abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
     }
 
