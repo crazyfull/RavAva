@@ -40,6 +40,7 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: AudioToolbox.framework
       - sdk: CoreAudio.framework
+      - sdk: CoreGraphics.framework
       - sdk: CoreFoundation.framework
       - sdk: Foundation.framework
       - sdk: UIKit.framework
