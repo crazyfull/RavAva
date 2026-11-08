@@ -36,6 +36,8 @@ enum class MicAvailability { Free, Busy, Unknown };
 // Asks the OS whether somebody else holds the microphone (call after the own capture is closed). Android: phone call / another app
 // recording (API 24+); iOS: the audio session interruption (a call, Siri, an alarm) began / ended; elsewhere Unknown. *why = the reason when Busy.
 MicAvailability OsMicAvailability(MicReason *why = nullptr);
+// iOS: a call / Siri / another app has the audio session right now (between "interruption began" and "ended"). false elsewhere.
+bool OsAudioInterrupted();
 // Really opens the microphone ("" = default) for a moment and checks that it delivers sound: the fallback where the OS can't tell. About 0.5 s, not the audio thread.
 bool ProbeMicrophone(const std::string &deviceId, int sampleRate, int channels);
 
