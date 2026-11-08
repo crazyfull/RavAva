@@ -75,7 +75,7 @@ jobs:
           cmake --build opus-build -j 4
           cmake --install opus-build
           WEBRTC_ROOT="${{ steps.webrtc.outputs.root }}"
-          if [ -n "$WEBRTC_ROOT" ]; then WARGS=(-DRAVAVA_WITH_WEBRTC=ON "-DRAVAVA_WEBRTC_ROOT=$WEBRTC_ROOT"); else WARGS=(-DRAVAVA_WITH_WEBRTC=OFF); fi
+          if [ -n "$WEBRTC_ROOT" ]; then WARGS=(-DRAVAVA_WITH_WEBRTC=ON "-DRAVAVA_WEBRTC_ROOT=$WEBRTC_ROOT" -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH); else WARGS=(-DRAVAVA_WITH_WEBRTC=OFF); fi
           cmake -S src/ravava -B ravava-build "${FLAGS[@]}" \
                 -DCMAKE_INSTALL_PREFIX="$PWD/ravava-$sdk" "${WARGS[@]}" \
                 -DRAVAVA_OPUS_ROOT="$PWD/opus-$sdk" \
