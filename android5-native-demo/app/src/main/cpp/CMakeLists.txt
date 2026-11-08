@@ -48,6 +48,7 @@ set(RAVAVA_SOURCES
     ${RAVAVA_SRC}/MusicPlayer.cpp
     ${RAVAVA_SRC}/OpusCodec.cpp
     ${RAVAVA_SRC}/Player.cpp
+    ${RAVAVA_SRC}/ConferencePlayer.cpp
     ${RAVAVA_SRC}/Recorder.cpp
     ${RAVAVA_SRC}/net/PacketRouter.cpp
     ${RAVAVA_SRC}/platform/AndroidAudioRoute.cpp

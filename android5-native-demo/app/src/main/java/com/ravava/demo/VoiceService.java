@@ -1,6 +1,7 @@
 package com.ravava.demo;
 
 import android.app.Notification;
+import android.content.Context;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -28,14 +29,23 @@ public class VoiceService extends Service {
         System.loadLibrary("ravava_demo");
     }
 
-    // Native methods
+    // Native methods (cpp/native-lib.cpp)
     private static native boolean nativeInit(Object context);
-    private static native boolean nativeStart(boolean udpMode, int localPort,
-                                              String remoteIp, int remotePort);
+    private static native boolean nativeWebrtc();
+    // p: loopback, bitrate, bandwidth, frameMs, lossPct, channels, agc, callMode, adaptive, hpf, dtx, musicMode, noise, echo,
+    //    volume, micGain, talk, musicVolume, monitor, monitorVolume  (booleans as 0 / 1)
+    private static native boolean nativeStart(int[] p, String server, int port, String inDev, String outDev);
     private static native void nativeStop();
+    private static native void nativeSet(int what, int value);       // 0 volume, 1 mic gain, 2 talk, 3 music vol, 4 monitor, 5 monitor vol, 6 adaptive
+    private static native void nativeSetDevice(boolean capture, String id);
+    private static native void nativeSetNetwork(boolean loopback, String server, int port);
+    private static native void nativeMusic(int op, String path);      // 0 play, 1 pause, 2 resume, 3 stop
+    private static native int nativeMusicState();                     // 0 stopped, 1 playing, 2 paused, 3 finished
+    private static native String[] nativeListDevices(boolean capture);   // "name\nid\ndefault"
     private static native int nativeMicLevel();
     private static native int nativeSpkLevel();
     private static native String nativeStats();
+    private static native String nativeRate();
 
     public class LocalBinder extends Binder {
         VoiceService getService() {
@@ -71,9 +81,9 @@ public class VoiceService extends Service {
         super.onDestroy();
     }
 
-    public boolean startSession(boolean udpMode, int localPort, String remoteIp, int remotePort) {
+    public boolean startSession(int[] p, String server, int port, String inDev, String outDev) {
         if (sessionRunning) return true;
-        boolean ok = nativeStart(udpMode, localPort, remoteIp, remotePort);
+        boolean ok = nativeStart(p, server, port, inDev, outDev);
         sessionRunning = ok;
         return ok;
     }
@@ -86,17 +96,21 @@ public class VoiceService extends Service {
         stopSelf();
     }
 
-    public int getMicLevel() {
-        return sessionRunning ? nativeMicLevel() : 0;
-    }
+    // Gives the library the Application context + JavaVM (needed before the device lists work); safe to call again.
+    public static void init(Context c) { nativeInit(c.getApplicationContext()); }
 
-    public int getSpkLevel() {
-        return sessionRunning ? nativeSpkLevel() : 0;
-    }
-
-    public String getStatsText() {
-        return sessionRunning ? nativeStats() : getString(R.string.status_idle);
-    }
+    public boolean isRunning() { return sessionRunning; }
+    public static boolean webrtcAvailable() { return nativeWebrtc(); }
+    public void set(int what, int value) { if (sessionRunning) nativeSet(what, value); }
+    public void setDevice(boolean capture, String id) { if (sessionRunning) nativeSetDevice(capture, id); }
+    public void setNetwork(boolean loopback, String server, int port) { if (sessionRunning) nativeSetNetwork(loopback, server, port); }
+    public void music(int op, String path) { if (sessionRunning) nativeMusic(op, path); }
+    public int musicState() { return sessionRunning ? nativeMusicState() : 0; }
+    public static String[] listDevices(boolean capture) { return nativeListDevices(capture); }
+    public int getMicLevel() { return sessionRunning ? nativeMicLevel() : 0; }
+    public int getSpkLevel() { return sessionRunning ? nativeSpkLevel() : 0; }
+    public String getStatsText() { return sessionRunning ? nativeStats() : getString(R.string.status_idle); }
+    public String getRateText() { return sessionRunning ? nativeRate() : ""; }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
