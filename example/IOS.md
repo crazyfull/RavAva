@@ -12,6 +12,10 @@ Opus inside, no echo cancellation). It proves the library compiles and links; th
    Call it from Swift through an Objective-C++ (`.mm`) file: RavAva is C++.
 6. Optional: "Audio, AirPlay, and Picture in Picture" background mode so a call survives the screen lock.
 
-## Not there yet
-- Echo cancellation: webrtc is not built for iOS. Use a headset, or add the system voice-processing unit later.
-- Interruptions (a phone call, Siri) are not handled: the stall detection that reopens a dead stream exists only on Android, so after one the app must call `Stop()` and `Start()` again.
+## Echo cancellation (webrtc)
+`libs/webrtc/build_ios.sh` builds webrtc-audio-processing 1.3 for iOS (arm64); the **Build Demo iOS** workflow does it (cached) and
+links it into libRavAva (`-DRAVAVA_WITH_WEBRTC=ON -DRAVAVA_WEBRTC_ROOT=...`). The xcframework workflow (`build-ios.yml`) is still without it.
+
+## Interruptions
+A call / Siri / another app taking the audio session is reported as `MicEvent::Interrupted` (`MicReason::SystemInterruption`) and
+`MicEvent::Free` afterwards; the speaker is re-opened by `Player::KeepDevice()` and the microphone by `automaticResumeAfterFreeMic`.
