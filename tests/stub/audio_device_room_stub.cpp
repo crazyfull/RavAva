@@ -105,6 +105,7 @@ bool AudioInput::Start(int rate, int ch, int ms, Callback cb, std::string*)
 }
 void AudioInput::Stop() { d->run = false; if(d->t.joinable()) d->t.join(); d->running = false; }
 bool AudioInput::Interrupted(MicReason *why) const { if(why) *why = MicReason::PhoneCall; return d->running && g_stubInterrupted; }
+bool OsAudioInterrupted(){ return false; }
 MicAvailability OsMicAvailability(MicReason *why){ if(why) *why = MicReason::PhoneCall; const int v = g_stubMicOs; return v < 0 ? MicAvailability::Unknown : (v ? MicAvailability::Busy : MicAvailability::Free); }
 bool ProbeMicrophone(const std::string &, int, int){ return !g_stubMicBusy; }
 bool AudioInput::DeviceMoved() { return g_stubInputMoved.exchange(false); }

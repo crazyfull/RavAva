@@ -202,6 +202,8 @@ void Player::KeepDevice()
     std::lock_guard<std::mutex> lk(m_keepMutex);        // GUI thread and watchdog
     if(!m_deviceWanted || m_switcher.Busy())
         return;
+    if(OsAudioInterrupted())
+        return;                         // iOS: a call has the audio, a re-open would only fail; it is done when it is over
     const bool running = m_output.IsRunning();
     if(running && !m_output.DeviceMoved())
         return;                         // all is well

@@ -41,12 +41,28 @@
 namespace ravava {
 
 // what miniaudio tells about a device (started / stopped / rerouted...), for the log. Not called from the audio callback.
-static std::atomic<bool> g_osInterrupted{false};     // iOS: an audio session interruption is going on
+static std::atomic<bool> g_osInterruptedRaw{false};     // iOS: an audio session interruption is going on
+static std::atomic<int64_t> g_osInterruptedSince{0};    // steady-clock ms when it began
+
+static int64_t steadyMs()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+// A "began" without a matching "ended" (the app was suspended during the call and missed it) must not block the audio for
+// ever: after two minutes the interruption is treated as over, the next re-open decides (it fails while the call is on).
+struct OsInterruptedFlag {
+    bool load() const {
+        if(!g_osInterruptedRaw.load()) return false;
+        return steadyMs() - g_osInterruptedSince.load() < 120000;
+    }
+};
+static const OsInterruptedFlag g_osInterrupted;
 
 static void onNotification(const ma_device_notification *n)
 {
-    if(n->type == ma_device_notification_type_interruption_began) g_osInterrupted = true;
-    else if(n->type == ma_device_notification_type_interruption_ended) g_osInterrupted = false;
+    if(n->type == ma_device_notification_type_interruption_began){ g_osInterruptedSince = steadyMs(); g_osInterruptedRaw = true; }
+    else if(n->type == ma_device_notification_type_interruption_ended) g_osInterruptedRaw = false;
     static const char *names[] = {"started", "stopped", "rerouted", "interruption began", "interruption ended", "unlocked"};
     const int t = int(n->type);
     RAVAVA_INFO("%s device %s", n->pDevice->type == ma_device_type_capture ? "capture" : "playback",
@@ -720,7 +736,17 @@ bool AudioOutput::DeviceMoved()
 #endif
 }
 
-bool AudioOutput::IsRunning() const { return d->running; }
+bool AudioOutput::IsRunning() const
+{
+#ifdef MA_APPLE_MOBILE
+    // iOS stops the device by itself when a call / Siri takes the audio: the stream is dead although we never stopped it
+    return d->running && ma_device_get_state(&d->dev) == ma_device_state_started;
+#else
+    return d->running;
+#endif
+}
+
+bool OsAudioInterrupted() { return g_osInterrupted.load(); }
 
 // ============================================================ DecodeAudioFile
 Pcm DecodeAudioFile(const std::string &path, int sampleRate, int channels, std::string *err)

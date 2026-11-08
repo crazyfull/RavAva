@@ -117,7 +117,7 @@ static UIProgressView *Bar() { UIProgressView *p = [UIProgressView new]; return 
     UILabel *lbVol, *lbMic, *lbMusicFile, *lbRate, *lbLog, *lbWebrtc;
     UIProgressView *barRx, *barMine;
     UIButton *btnStart, *btnStop, *btnTalk;
-    BOOL talk, interrupted;
+    BOOL talk;
     int restartGen, restartTries;
     std::vector<std::string> inIds, outIds;
     NSString *musicPath;
@@ -145,19 +145,11 @@ static UIProgressView *Bar() { UIProgressView *p = [UIProgressView new]; return 
     [self refreshDevices];
     timer = [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(onTick) userInfo:nil repeats:YES];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onForeground) name:UIApplicationWillEnterForegroundNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onInterruption:) name:AVAudioSessionInterruptionNotification object:nil];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onMediaReset) name:AVAudioSessionMediaServicesWereResetNotification object:nil];
     [self showDeviceCounts];
 }
 
-// ---- phone call / Siri / another app took the audio: when it is over the streams are dead, so restart the session
-- (void)onInterruption:(NSNotification *)n {
-    NSUInteger type = [n.userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
-    if (type == AVAudioSessionInterruptionTypeBegan) { interrupted = YES; return; }
-    if (!interrupted) return;
-    interrupted = NO;
-    [self restartAudioAfter:0.7];
-}
+// ---- calls / Siri: libRavAva handles them itself (mic events + re-opening both devices). Only a media-services reset restarts the session here
 - (void)onMediaReset { if (running) [self restartAudioAfter:0.5]; }
 - (void)restartAudioAfter:(double)delay {
     if (!running) return;
