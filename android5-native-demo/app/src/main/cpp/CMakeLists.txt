@@ -39,7 +39,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(opus)
 
 # ---------------------------------------------------------------------------
-# libRavAva sources (no WebRTC)
+# libRavAva sources
 # ---------------------------------------------------------------------------
 set(RAVAVA_SOURCES
     ${RAVAVA_SRC}/AudioDevice.cpp
@@ -48,6 +48,7 @@ set(RAVAVA_SOURCES
     ${RAVAVA_SRC}/MusicPlayer.cpp
     ${RAVAVA_SRC}/OpusCodec.cpp
     ${RAVAVA_SRC}/Player.cpp
+    ${RAVAVA_SRC}/ConferencePlayer.cpp
     ${RAVAVA_SRC}/Recorder.cpp
     ${RAVAVA_SRC}/net/PacketRouter.cpp
     ${RAVAVA_SRC}/platform/AndroidAudioRoute.cpp
@@ -68,6 +69,17 @@ target_compile_definitions(ravava_static PUBLIC
     MA_ENABLE_OPENSL=1
 )
 target_link_libraries(ravava_static PUBLIC opus log android OpenSLES)
+
+# webrtc-audio-processing (optional): -DWEBRTC_ROOT=<libs/webrtc/build_android.sh output for this ABI> (lib/libwebrtc_apm.a + include/)
+set(WEBRTC_ROOT "" CACHE PATH "libs/webrtc/build_android.sh output (lib/libwebrtc_apm.a, include/)")
+if(WEBRTC_ROOT AND EXISTS "${WEBRTC_ROOT}/lib/libwebrtc_apm.a" AND EXISTS "${WEBRTC_ROOT}/include/modules/audio_processing/include/audio_processing.h")
+    message(STATUS "WebRTC audio processing: ON (${WEBRTC_ROOT})")
+    target_compile_definitions(ravava_static PUBLIC RAVAVA_WITH_WEBRTC)
+    target_include_directories(ravava_static PUBLIC "${WEBRTC_ROOT}/include")
+    target_link_libraries(ravava_static PUBLIC "${WEBRTC_ROOT}/lib/libwebrtc_apm.a")
+else()
+    message(STATUS "WebRTC audio processing: OFF (no WEBRTC_ROOT): no echo cancellation / noise suppression / AGC")
+endif()
 
 # ---------------------------------------------------------------------------
 # Demo shared library (JNI)
