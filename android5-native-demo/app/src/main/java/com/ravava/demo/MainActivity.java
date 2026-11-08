@@ -80,6 +80,7 @@ public class MainActivity extends AppCompatActivity {
     private final List<String> inIds = new ArrayList<>(), outIds = new ArrayList<>();
     private View[] pages;
     private TabLayout tabLayout;
+    private boolean showingLibLog = false;      // the Log tab shows the library log (logcat) instead of the live statistics
     private SharedPreferences prefs;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
@@ -88,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
             if (bound && service != null && running) {
                 pbReceived.setProgress(service.getSpkLevel());
                 pbMine.setProgress(service.getMicLevel());
-                tvLog.setText(service.getStatsText());
+                if (!showingLibLog) tvLog.setText(service.getStatsText());
                 tvRate.setText(service.getRateText());
                 updateMusicButtons();
             }
@@ -303,9 +304,28 @@ public class MainActivity extends AppCompatActivity {
         showPage(tabLayout.getSelectedTabPosition());
     }
 
+    // The library writes its log to logcat (tag "ravava"); an app can read its own lines, so no adb is needed to send them.
+    private String readLibraryLog() {
+        StringBuilder sb = new StringBuilder();
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"logcat", "-d", "-v", "time", "-s", "ravava:V"});
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()));
+            java.util.ArrayDeque<String> last = new java.util.ArrayDeque<>();
+            String line;
+            while ((line = r.readLine()) != null) {
+                last.add(line);
+                if (last.size() > 150) last.removeFirst();      // the newest 150 lines
+            }
+            for (String l : last) sb.append(l).append('\n');
+        } catch (Exception e) {
+            sb.append("cannot read logcat: ").append(e);
+        }
+        return sb.length() == 0 ? "(no library log lines)" : sb.toString();
+    }
+
     private void showDeviceCounts() {
         // the Log tab says what the device lists hold (while idle), so an empty list is visible
-        if (running) return;
+        if (running || showingLibLog) return;
         tvLog.setText("Idle\nDevices listed by the library: " + (inIds.size() - 1) + " microphone(s), " + (outIds.size() - 1) + " speaker(s)"
                 + ((inIds.size() <= 1 && outIds.size() <= 1) ? "\n(none: see  adb logcat -s ravava  for the reason)" : ""));
     }
@@ -462,6 +482,9 @@ public class MainActivity extends AppCompatActivity {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("RavAva log", tvLog.getText()));
         }));
+        c.addView(row(
+                button("Library log", v -> { showingLibLog = true; tvLog.setText(readLibraryLog()); }),
+                button("Live stats", v -> { showingLibLog = false; if (!running) showDeviceCounts(); })));
         tvLog = new TextView(this);
         tvLog.setTypeface(Typeface.MONOSPACE);
         tvLog.setTextSize(12);
