@@ -668,9 +668,17 @@ bool IsPhoneBusy()
 // Who has the microphone, asked while OUR capture stream is closed: a phone call, or any other app recording (API 24+:
 // AudioManager.getActiveRecordingConfigurations() lists the active recordings of every app; ours is closed, so a non-empty list
 // means somebody else). Below API 24 there is nothing to ask: -1 (the caller probes by opening the microphone).
+static std::atomic<bool> g_focusLost{false};
+void SetAudioFocusLost(bool lost) { g_focusLost = lost; }
+bool AudioFocusLost() { return g_focusLost.load(); }
+
 int MicAvailabilityOs(int *reason)
 {
     if(reason) *reason = 0;
+    if(g_focusLost){                    // another app (a VoIP call: Telegram, WhatsApp...) took the audio focus
+        if(reason) *reason = 2;
+        return 1;
+    }
     Env env;
     if(!env) return -1;
     Ref am = audioManager(env);
@@ -1013,6 +1021,20 @@ std::string DescribeActiveDevice(bool capture)
     Ref am = audioManager(env);
     if(!am) return std::string();
     const int sdk = sdkInt(env);
+
+    if(sdk < 26){
+        // OpenSL ES streams (Android 5 - 7) don't know their device: say where the route we set points
+        auto yes = [&](const char *name) {
+            jmethodID m = methodOf(env, am.get(), name, "()Z");
+            const bool r = m && env->CallBooleanMethod(am.get(), m) != JNI_FALSE;
+            env.failed();
+            return r;
+        };
+        if(yes("isBluetoothScoOn")) return "Bluetooth headset (handsfree)";
+        if(yes("isWiredHeadsetOn")) return capture ? "Wired headset (microphone)" : "Wired headset";
+        if(capture) return "Phone microphone";
+        return yes("isSpeakerphoneOn") ? "Phone speaker" : "Earpiece";
+    }
 
     if(capture){
         if(sdk < 28) return std::string();

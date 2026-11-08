@@ -80,6 +80,12 @@ std::string DescribeDeviceId(int deviceId, bool capture);
 // the speaker to the earpiece and silences the headset. No-op while no Bluetooth route is held. Never waits.
 void ReassertRoute();
 
+// Audio focus (a call of another app: Telegram, WhatsApp...). The library is Qt/Java free, so the application forwards it: request the focus
+// with AudioManager.requestAudioFocus(listener, STREAM_VOICE_CALL, AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) and call this from the listener:
+// AUDIOFOCUS_LOSS / LOSS_TRANSIENT -> true, AUDIOFOCUS_GAIN -> false. While lost the Recorder stops the microphone (MicEvent::Interrupted,
+// MicReason::OtherApp), on gain it reports MicEvent::Free. Any thread.
+void SetAudioFocusLost(bool lost);
+bool AudioFocusLost();
 // Android version (API level), 0 if unknown.
 int SdkInt();
 // true while the phone rings / is in a real call. JNI: not the audio thread.

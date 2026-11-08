@@ -5,6 +5,7 @@
 #include <string>
 
 #include <ravava/AudioDevice.h>
+#include <ravava/platform/AndroidAudioRoute.h>
 #include "VoiceSession.h"
 
 #define LOG_TAG "ravava"
@@ -34,6 +35,9 @@ JNI(jboolean, nativeInit)(JNIEnv *env, jclass, jobject context)
     jobject globalCtx = env->NewGlobalRef(context);     // kept for the lifetime of the process
     return VoiceSession::InitAndroid(g_vm, globalCtx) ? JNI_TRUE : JNI_FALSE;
 }
+
+// the audio focus changed (another app's call took it / gave it back): see AndroidAudioRoute.h
+JNI(void, nativeFocus)(JNIEnv *, jclass, jboolean lost) { ravava::android::SetAudioFocusLost(lost == JNI_TRUE); }
 
 JNI(jboolean, nativeWebrtc)(JNIEnv *, jclass) { return VoiceSession::WebrtcAvailable() ? JNI_TRUE : JNI_FALSE; }
 

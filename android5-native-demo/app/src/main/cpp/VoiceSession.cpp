@@ -124,8 +124,13 @@ bool VoiceSession::Start(const SessionSettings &s)
 
     // the recorder's packet handler runs on the AUDIO thread: wrap, then send (or loop back), never block
     rec_->SetPacketHandler([this](const Bytes &body) { sendToNetwork(body); });
-    rec_->SetMicEventHandler([](MicEvent e, MicReason r) {
+    volume_ = s.volume;
+    muted_ = false;
+    rec_->SetMicEventHandler([this](MicEvent e, MicReason r) {
         LOGI("microphone event: %s (reason %d)", e == MicEvent::Busy ? "busy, cannot start" : e == MicEvent::Interrupted ? "interrupted" : "free", int(r));
+        // another call has the microphone: don't talk over it, mute what we play; back to the set volume when it is free
+        if (e == MicEvent::Interrupted) { muted_ = true;  if (play_) play_->SetVolume(0); }
+        else if (e == MicEvent::Free)   { muted_ = false; if (play_) play_->SetVolume(volume_); }
     });
     play_->SetConfig(&cfg_);
     rec_->SetConfig(&cfg_);
@@ -303,7 +308,7 @@ void VoiceSession::buildStats()
 }
 
 // ---------------------------------------------------------------------------
-void VoiceSession::SetVolume(int v)        { if (play_) play_->SetVolume(v); }
+void VoiceSession::SetVolume(int v)        { volume_ = v; if (play_ && !muted_) play_->SetVolume(v); }
 void VoiceSession::SetMicGain(int v)       { if (rec_) rec_->SetInputGain(v); }
 void VoiceSession::SetTalk(bool on)        { if (rec_) rec_->SetMicEnabled(on); }
 void VoiceSession::SetMusicVolume(int v)   { if (rec_) rec_->Music()->SetVolume(v); }

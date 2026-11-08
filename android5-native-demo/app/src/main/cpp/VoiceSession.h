@@ -92,6 +92,8 @@ private:
     uint16_t rxStreamId_ = 0;
     std::atomic<int64_t> rxStreamTime_{0};
 
+    std::atomic<int> volume_{100};      // the volume the user set (the speaker is muted while the microphone is taken by another call)
+    std::atomic<bool> muted_{false};
     std::atomic<bool> running_{false};
     std::atomic<bool> loopback_{true};
     std::atomic<uint32_t> destAddr_{0};     // network byte order
