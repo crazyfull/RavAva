@@ -112,6 +112,8 @@ JNI(jint, nativeMusicState)(JNIEnv *, jclass)
 JNI(jobjectArray, nativeListDevices)(JNIEnv *env, jclass, jboolean capture)
 {
     const std::vector<ravava::AudioDeviceInfo> list = capture ? ravava::ListInputDevices() : ravava::ListOutputDevices();
+    LOGI("device list (%s): %zu entries", capture ? "microphones" : "speakers", list.size());
+    for (const auto &d : list) LOGI("  %s = %s", d.id.c_str(), d.name.c_str());
     jclass strCls = env->FindClass("java/lang/String");
     jobjectArray arr = env->NewObjectArray(jsize(list.size()), strCls, nullptr);
     for (size_t i = 0; i < list.size(); ++i) {

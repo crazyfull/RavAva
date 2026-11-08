@@ -295,6 +295,7 @@ bool AudioInput::Start(int sampleRate, int channels, int periodMs, Callback cb, 
         int32_t aid = 0; bool voice = false, held = false;
         d->openEpoch = android::ModeEpoch();            // read BEFORE preparing: a switch in between only costs one extra re-open
         android::PrepareStream(d->deviceId, true, &aid, &voice, &held);
+        if(android::SdkInt() < 26) aid = 0;             // OpenSL ES below Android 8: no device ids (the route is set with AudioManager)
         prepareMs = sinceMs();
         d->voiceRoute = held;
         if(voice){
@@ -574,6 +575,7 @@ bool AudioOutput::Start(int sampleRate, int channels, int periodMs, Callback cb,
     {
         int32_t aid = 0; bool voice = false, held = false;
         android::PrepareStream(d->deviceId, false, &aid, &voice, &held);
+        if(android::SdkInt() < 26) aid = 0;
         prepareMs = sinceMs();
         d->voiceRoute = held;
         if(voice)

@@ -7,6 +7,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.os.Build;
@@ -15,7 +16,6 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.text.InputType;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
@@ -79,6 +79,9 @@ public class MainActivity extends AppCompatActivity {
     private ToggleButton btnTalk;
     private final List<String> inIds = new ArrayList<>(), outIds = new ArrayList<>();
     private View[] pages;
+    private TabLayout tabLayout;
+    private boolean showingLibLog = false;      // the Log tab shows the library log (logcat) instead of the live statistics
+    private SharedPreferences prefs;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable ticker = new Runnable() {
@@ -86,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
             if (bound && service != null && running) {
                 pbReceived.setProgress(service.getSpkLevel());
                 pbMine.setProgress(service.getMicLevel());
-                tvLog.setText(service.getStatsText());
+                if (!showingLibLog) tvLog.setText(service.getStatsText());
                 tvRate.setText(service.getRateText());
                 updateMusicButtons();
             }
@@ -199,7 +202,9 @@ public class MainActivity extends AppCompatActivity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
 
+        prefs = getSharedPreferences("ui", MODE_PRIVATE);
         TabLayout tabs = new TabLayout(this);
+        tabLayout = tabs;
         for (String t : new String[]{"Main", "Encoder", "Music", "Log"}) tabs.addTab(tabs.newTab().setText(t));
         root.addView(tabs);
 
@@ -217,14 +222,112 @@ public class MainActivity extends AppCompatActivity {
         root.addView(tvRate);
         setContentView(root);
 
+        showPage(0);
         tabs.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override public void onTabSelected(TabLayout.Tab t) { showPage(t.getPosition()); }
             @Override public void onTabUnselected(TabLayout.Tab t) {}
             @Override public void onTabReselected(TabLayout.Tab t) {}
         });
-        showPage(0);
         refreshDevices();
+        restoreState();                 // the window comes back as it was (minimize, rotation, the system recreating the activity)
         updateRunning();
+        showDeviceCounts();
+    }
+
+    // ---------------------------------------------------------------- the window state survives minimize / recreate / restart
+    private void saveState() {
+        if (prefs == null || spInput == null) return;
+        SharedPreferences.Editor e = prefs.edit();
+        e.putInt("tab", tabLayout.getSelectedTabPosition());
+        e.putBoolean("loopback", cbLoopback.isChecked());
+        e.putInt("server", spServer.getSelectedItemPosition());
+        e.putString("customIp", edCustomIp.getText().toString());
+        e.putString("port", edPort.getText().toString());
+        e.putString("inDev", idAt(inIds, spInput.getSelectedItemPosition()));
+        e.putString("outDev", idAt(outIds, spOutput.getSelectedItemPosition()));
+        e.putInt("volume", sbVolume.getProgress());
+        e.putInt("micGain", sbMicGain.getProgress());
+        e.putBoolean("talk", btnTalk.isChecked());
+        e.putInt("bitrate", spBitrate.getSelectedItemPosition());
+        e.putInt("bandwidth", spBandwidth.getSelectedItemPosition());
+        e.putInt("frame", spFrame.getSelectedItemPosition());
+        e.putInt("loss", spLoss.getSelectedItemPosition());
+        e.putBoolean("stereo", rbStereo.isChecked());
+        e.putBoolean("dtx", cbDtx.isChecked());
+        e.putBoolean("musicMode", cbMusicMode.isChecked());
+        e.putBoolean("adaptive", cbAdaptive.isChecked());
+        e.putBoolean("callMode", cbCallMode.isChecked());
+        e.putBoolean("agc", cbAgc.isChecked());
+        e.putBoolean("hpf", cbHpf.isChecked());
+        e.putInt("noise", spNoise.getSelectedItemPosition());
+        e.putInt("echo", spEcho.getSelectedItemPosition());
+        e.putString("musicPath", edMusicPath.getText().toString());
+        e.putInt("musicGain", sbMusicGain.getProgress());
+        e.putBoolean("monitor", cbMonitor.isChecked());
+        e.putInt("monitorGain", sbMonitor.getProgress());
+        e.apply();
+    }
+
+    private static int pick(int saved, int count) { return saved >= 0 && saved < count ? saved : 0; }
+
+    private void restoreState() {
+        SharedPreferences p = prefs;
+        if (p == null || !p.contains("tab")) { showPage(0); return; }
+        cbLoopback.setChecked(p.getBoolean("loopback", true));
+        spServer.setSelection(pick(p.getInt("server", 0), SERVER_NAMES.length));
+        edCustomIp.setText(p.getString("customIp", ""));
+        edPort.setText(p.getString("port", "10001"));
+        spInput.setSelection(Math.max(0, inIds.indexOf(p.getString("inDev", ""))), false);
+        spOutput.setSelection(Math.max(0, outIds.indexOf(p.getString("outDev", ""))), false);
+        sbVolume.setProgress(p.getInt("volume", 100));
+        sbMicGain.setProgress(p.getInt("micGain", 100));
+        btnTalk.setChecked(p.getBoolean("talk", true));
+        spBitrate.setSelection(pick(p.getInt("bitrate", 11), BITRATES.length));
+        spBandwidth.setSelection(pick(p.getInt("bandwidth", 4), BANDWIDTH_NAMES.length));
+        spFrame.setSelection(pick(p.getInt("frame", 1), FRAMES.length));
+        spLoss.setSelection(pick(p.getInt("loss", 2), LOSSES.length));
+        if (p.getBoolean("stereo", false)) rbStereo.setChecked(true); else rbMono.setChecked(true);
+        cbDtx.setChecked(p.getBoolean("dtx", true));
+        cbMusicMode.setChecked(p.getBoolean("musicMode", false));
+        cbAdaptive.setChecked(p.getBoolean("adaptive", false));
+        cbCallMode.setChecked(p.getBoolean("callMode", true));
+        cbAgc.setChecked(p.getBoolean("agc", false) && webrtc);
+        cbHpf.setChecked(p.getBoolean("hpf", false) && webrtc);
+        spNoise.setSelection(webrtc ? pick(p.getInt("noise", 0), NOISE.length) : 0);
+        spEcho.setSelection(webrtc ? pick(p.getInt("echo", 0), ECHO.length) : 0);
+        edMusicPath.setText(p.getString("musicPath", "/sdcard/Music/test.mp3"));
+        sbMusicGain.setProgress(p.getInt("musicGain", 100));
+        cbMonitor.setChecked(p.getBoolean("monitor", false));
+        sbMonitor.setProgress(p.getInt("monitorGain", 100));
+        TabLayout.Tab t = tabLayout.getTabAt(pick(p.getInt("tab", 0), 4));
+        if (t != null) t.select();
+        showPage(tabLayout.getSelectedTabPosition());
+    }
+
+    // The library writes its log to logcat (tag "ravava"); an app can read its own lines, so no adb is needed to send them.
+    private String readLibraryLog() {
+        StringBuilder sb = new StringBuilder();
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"logcat", "-d", "-v", "time", "-s", "ravava:V"});
+            java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(p.getInputStream()));
+            java.util.ArrayDeque<String> last = new java.util.ArrayDeque<>();
+            String line;
+            while ((line = r.readLine()) != null) {
+                last.add(line);
+                if (last.size() > 150) last.removeFirst();      // the newest 150 lines
+            }
+            for (String l : last) sb.append(l).append('\n');
+        } catch (Exception e) {
+            sb.append("cannot read logcat: ").append(e);
+        }
+        return sb.length() == 0 ? "(no library log lines)" : sb.toString();
+    }
+
+    private void showDeviceCounts() {
+        // the Log tab says what the device lists hold (while idle), so an empty list is visible
+        if (running || showingLibLog) return;
+        tvLog.setText("Idle\nDevices listed by the library: " + (inIds.size() - 1) + " microphone(s), " + (outIds.size() - 1) + " speaker(s)"
+                + ((inIds.size() <= 1 && outIds.size() <= 1) ? "\n(none: see  adb logcat -s ravava  for the reason)" : ""));
     }
 
     private void showPage(int i) {
@@ -257,9 +360,8 @@ public class MainActivity extends AppCompatActivity {
         c.addView(label("Speaker"));
         spOutput = spinner(new String[]{"System default"}, 0);
         c.addView(spOutput);
-        // the lists are refreshed right before they open (a headset that was just connected shows up without Stop / Start)
-        spInput.setOnTouchListener((v, e) -> { if (e.getAction() == MotionEvent.ACTION_DOWN) refreshDevices(); return false; });
-        spOutput.setOnTouchListener((v, e) -> { if (e.getAction() == MotionEvent.ACTION_DOWN) refreshDevices(); return false; });
+        // a headset that was just connected shows up with this button (and on every Start / when the app comes back)
+        c.addView(button("Refresh device lists", v -> { refreshDevices(); showDeviceCounts(); }));
         spInput.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> a, View v, int pos, long id) { if (bound && service != null) service.setDevice(true, idAt(inIds, pos)); }
             @Override public void onNothingSelected(AdapterView<?> a) {}
@@ -380,6 +482,9 @@ public class MainActivity extends AppCompatActivity {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("RavAva log", tvLog.getText()));
         }));
+        c.addView(row(
+                button("Library log", v -> { showingLibLog = true; tvLog.setText(readLibraryLog()); }),
+                button("Live stats", v -> { showingLibLog = false; if (!running) showDeviceCounts(); })));
         tvLog = new TextView(this);
         tvLog.setTypeface(Typeface.MONOSPACE);
         tvLog.setTextSize(12);
@@ -434,19 +539,25 @@ public class MainActivity extends AppCompatActivity {
         if (bound && service != null && running) service.setNetwork(cbLoopback.isChecked(), serverIp(), serverPort());
     }
 
+    // microphone, and on Android 12+ the Bluetooth permission (without it a connected headset is not listed / usable)
     private boolean checkPermissions() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, REQ_PERMISSIONS);
-            return false;
-        }
-        return true;
+        List<String> need = new ArrayList<>();
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+            need.add(Manifest.permission.RECORD_AUDIO);
+        if (Build.VERSION.SDK_INT >= 31
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)
+            need.add(Manifest.permission.BLUETOOTH_CONNECT);
+        if (need.isEmpty()) return true;
+        ActivityCompat.requestPermissions(this, need.toArray(new String[0]), REQ_PERMISSIONS);
+        return false;
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_PERMISSIONS) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) { refreshDevices(); startSession(); }
+            boolean mic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            if (mic) { refreshDevices(); startSession(); }       // (a refused Bluetooth permission only means no headset in the lists)
             else Toast.makeText(this, R.string.permission_required, Toast.LENGTH_LONG).show();
         }
     }
@@ -489,9 +600,9 @@ public class MainActivity extends AppCompatActivity {
         running = false;
         pbReceived.setProgress(0);
         pbMine.setProgress(0);
-        tvLog.setText(R.string.status_idle);
         tvRate.setText("");
         updateRunning();
+        showDeviceCounts();
     }
 
     private void updateRunning() {
@@ -515,7 +626,18 @@ public class MainActivity extends AppCompatActivity {
         ui.post(ticker);
     }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (!running && prefs != null && spInput != null) { refreshDevices(); showDeviceCounts(); }   // a headset may have been connected meanwhile
+    }
+
+    @Override protected void onPause() {
+        saveState();
+        super.onPause();
+    }
+
     @Override protected void onStop() {
+        saveState();
         ui.removeCallbacks(ticker);
         if (bound) { unbindService(connection); bound = false; }
         super.onStop();
