@@ -1,21 +1,28 @@
 #include "VoiceSession.h"
 
+#ifdef __ANDROID__
 #include <android/log.h>
+#endif
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
 
+#ifdef __ANDROID__
 #include <ravava/platform/AndroidAudioRoute.h>
-
 #define LOG_TAG "ravava"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#else
+#define LOGI(...) do { std::fprintf(stderr, "ravava: " __VA_ARGS__); std::fputc('\n', stderr); } while (0)
+#define LOGE(...) LOGI(__VA_ARGS__)
+#endif
 
 using namespace ravava;
 
@@ -27,6 +34,7 @@ static int64_t nowMs()
 VoiceSession::VoiceSession() = default;
 VoiceSession::~VoiceSession() { Stop(); }
 
+#ifdef __ANDROID__
 bool VoiceSession::InitAndroid(JavaVM *vm, jobject context)
 {
     if (!vm || !context) return false;
@@ -34,6 +42,7 @@ bool VoiceSession::InitAndroid(JavaVM *vm, jobject context)
     LOGI("ravava::android::Init done");
     return true;
 }
+#endif
 
 bool VoiceSession::WebrtcAvailable() { return AudioProcessor::IsAvailable(); }
 

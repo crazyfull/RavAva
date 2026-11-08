@@ -1,0 +1,46 @@
+name: RavAvaDemo
+options:
+  bundleIdPrefix: com.ravava
+  deploymentTarget:
+    iOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    CLANG_CXX_LANGUAGE_STANDARD: c++17
+    CLANG_CXX_LIBRARY: libc++
+    ENABLE_BITCODE: NO
+    SWIFT_VERSION: "5.0"
+    OTHER_LDFLAGS: ["-ObjC"]
+targets:
+  RavAvaDemo:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: ../android5-native-demo/app/src/main/cpp/VoiceSession.cpp
+        compilerFlags: ["-std=c++17"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ravava.demo
+        PRODUCT_NAME: RavAva
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Info.plist
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/../build-ios-lib/include
+          - $(SRCROOT)/../build-ios-lib/include/ravava
+          - $(SRCROOT)/../android5-native-demo/app/src/main/cpp
+        LIBRARY_SEARCH_PATHS: $(SRCROOT)/../build-ios-lib
+        OTHER_LDFLAGS: ["-ObjC", "-lRavAva"]
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGN_IDENTITY: ""
+    dependencies:
+      - sdk: AVFoundation.framework
+      - sdk: AudioToolbox.framework
+      - sdk: CoreAudio.framework
+      - sdk: CoreFoundation.framework
+      - sdk: Foundation.framework
+      - sdk: UIKit.framework
+      - sdk: UniformTypeIdentifiers.framework

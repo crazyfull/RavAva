@@ -1,5 +1,5 @@
 /*
- * Full-duplex voice session of the native Android demo: the same pipeline as the Qt demo (Recorder -> packet envelope ->
+ * Full-duplex voice session of the native demos (Android and iOS share this file): the same pipeline as the Qt demo (Recorder -> packet envelope ->
  * UDP server or loopback -> PacketRouter -> ConferencePlayer), every setting of the Qt window, Qt-free.
  *
  * Threads: JNI calls come from the Java main thread (serialized by native-lib.cpp), the packet handler runs on the audio
@@ -7,7 +7,9 @@
  */
 #pragma once
 
+#ifdef __ANDROID__
 #include <jni.h>
+#endif
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -48,7 +50,9 @@ public:
     ~VoiceSession();
 
     // Call once from Java after obtaining the Application context.
+#ifdef __ANDROID__
     static bool InitAndroid(JavaVM *vm, jobject context);
+#endif
     static bool WebrtcAvailable();
 
     bool Start(const SessionSettings &s);
