@@ -126,9 +126,18 @@ static std::vector<AudioDeviceInfo> listDevices(bool capture, bool wait = false)
         return cache[capture ? 1 : 0];
     }
     std::vector<AudioDeviceInfo> out;
+#ifdef RAVAVA_IOS
+    // iOS: never create + destroy a context here. Initialising / uninitialising one touches the (single, app wide) audio
+    // session - it changes the category and deactivates it - which cuts the running stream and fires a route change.
+    ma_context *pctx = deviceContext();
+    if(!pctx)
+        return out;
+    ma_context &ctx = *pctx;
+#else
     ma_context ctx;
     if(ma_context_init(nullptr, 0, nullptr, &ctx) != MA_SUCCESS)
         return out;
+#endif
     ma_device_info *playback = nullptr, *captureInfos = nullptr;
     ma_uint32 nPlayback = 0, nCapture = 0;
     if(ma_context_get_devices(&ctx, &playback, &nPlayback, &captureInfos, &nCapture) == MA_SUCCESS){
@@ -142,7 +151,9 @@ static std::vector<AudioDeviceInfo> listDevices(bool capture, bool wait = false)
             out.push_back(std::move(d));
         }
     }
+#ifndef RAVAVA_IOS
     ma_context_uninit(&ctx);
+#endif
     {
         std::lock_guard<std::mutex> ck(cacheMutex);
         cache[capture ? 1 : 0] = out;

@@ -141,8 +141,7 @@ static UIProgressView *Bar() { UIProgressView *p = [UIProgressView new]; return 
     [self loadPrefs];
     [self refreshDevices];
     timer = [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(onTick) userInfo:nil repeats:YES];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshDevices) name:AVAudioSessionRouteChangeNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(refreshDevices) name:UIApplicationWillEnterForegroundNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onForeground) name:UIApplicationWillEnterForegroundNotification object:nil];
     [self showDeviceCounts];
 }
 
@@ -248,6 +247,7 @@ static NSString *N(const std::string &s) { return [NSString stringWithUTF8String
 - (int)port { int p = tfPort.text.intValue; return p > 0 && p < 65536 ? p : 10001; }
 
 - (void)refreshDevices {
+    if (running) return;      // never touch the audio session while the stream runs
     auto ins = ravava::ListInputDevices(), outs = ravava::ListOutputDevices();
     NSMutableArray *ni = [NSMutableArray arrayWithObject:@"System default"], *no = [NSMutableArray arrayWithObject:@"System default"];
     NSString *curIn = pIn.index < (NSInteger)pIn.items.count ? pIn.items[pIn.index] : nil;
@@ -263,6 +263,7 @@ static NSString *N(const std::string &s) { return [NSString stringWithUTF8String
     if (running) return;
     lbLog.text = [NSString stringWithFormat:@"Idle\n%zu input device(s) listed, %zu output route(s) listed", inIds.size(), outIds.size()];
 }
+- (void)onForeground { if (!running) [self refreshDevices]; }
 - (void)onRefresh { [self refreshDevices]; [self showDeviceCounts]; }
 
 // ---- actions
