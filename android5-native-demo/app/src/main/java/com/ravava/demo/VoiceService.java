@@ -2,6 +2,7 @@ package com.ravava.demo;
 
 import android.app.Notification;
 import android.content.Context;
+import android.media.AudioManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -32,6 +33,7 @@ public class VoiceService extends Service {
     // Native methods (cpp/native-lib.cpp)
     private static native boolean nativeInit(Object context);
     private static native boolean nativeWebrtc();
+    private static native void nativeFocus(boolean lost);      // the audio focus was taken by / given back from another app's call
     // p: loopback, bitrate, bandwidth, frameMs, lossPct, channels, agc, callMode, adaptive, hpf, dtx, musicMode, noise, echo,
     //    volume, micGain, talk, musicVolume, monitor, monitorVolume  (booleans as 0 / 1)
     private static native boolean nativeStart(int[] p, String server, int port, String inDev, String outDev);
@@ -81,15 +83,39 @@ public class VoiceService extends Service {
         super.onDestroy();
     }
 
+    // Audio focus: a call of another app (Telegram, WhatsApp...) takes it, and the library stops the microphone while it is gone.
+    // MAY_DUCK: we do not pause the user's music or mute notifications, we only ask to be told.
+    private final AudioManager.OnAudioFocusChangeListener focusListener = change -> {
+        if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) nativeFocus(true);
+        else if (change == AudioManager.AUDIOFOCUS_GAIN) nativeFocus(false);
+    };
+
+    @SuppressWarnings("deprecation")
+    private void requestFocus() {
+        AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (am != null)
+            am.requestAudioFocus(focusListener, AudioManager.STREAM_VOICE_CALL, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void abandonFocus() {
+        AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        if (am != null) am.abandonAudioFocus(focusListener);
+        nativeFocus(false);
+    }
+
     public boolean startSession(int[] p, String server, int port, String inDev, String outDev) {
         if (sessionRunning) return true;
+        nativeFocus(false);
         boolean ok = nativeStart(p, server, port, inDev, outDev);
         sessionRunning = ok;
+        if (ok) requestFocus();
         return ok;
     }
 
     public void stopSession() {
         if (!sessionRunning) return;
+        abandonFocus();
         nativeStop();
         sessionRunning = false;
         stopForeground(true);

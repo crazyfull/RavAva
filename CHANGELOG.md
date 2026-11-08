@@ -7,6 +7,8 @@ Not yet released as a number: everything below is in 0.1.0.
 ## 0.1.0 (in development)
 
 ### Added
+- Android: `android::SetAudioFocusLost()`: the application forwards the audio focus (a call of another app: Telegram, WhatsApp...); while it is lost the recorder stops the microphone (`MicEvent::Interrupted`, `MicReason::OtherApp`) and reports `Free` when it is back.
+- Android 5 / 5.1: device lists and routes without `AudioManager.getDevices()` (API < 23); the active device is described from the route we set on OpenSL ES streams.
 - `Player::SetDeviceLostHandler` / `Recorder::SetDeviceLostHandler`, `IsDeviceAvailable()`: when the chosen speaker / microphone vanishes (a Bluetooth headset switched off) the library switches to the system default device instead of re-opening the lost one in a loop, and reports the lost id.
 - Microphone events: `Recorder::SetMicEventHandler` reports `Busy` (Start could not get the microphone), `Interrupted` (a phone call / another app / an iOS interruption took it; the recorder stops it) and `Free`. Free comes from the OS where it can tell (Android 7+, iOS), elsewhere from a test open every second. `AudioConfig::automaticResumeAfterFreeMic` (default true) restarts the microphone 2 s after Free, otherwise call `Recorder::ResumeMic()`. `Recorder::GetMicState()`.
 - Android: no stream re-opening while the phone rings / is in a call; after a call in the media route the leftover SCO / communication device is cleared.

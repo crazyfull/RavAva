@@ -403,6 +403,7 @@ bool AudioInput::Interrupted(MicReason *why) const
     bool taken = false;
 #ifdef RAVAVA_ANDROID
     if(d->running && android::IsPhoneBusy()){ taken = true; w = MicReason::PhoneCall; }
+    else if(d->running && android::AudioFocusLost()){ taken = true; w = MicReason::OtherApp; }
     else if(d->running && d->zeroCb.load(std::memory_order_relaxed) > 150){ taken = true; w = MicReason::OtherApp; }   // ~1.5 s of digital silence: Android 10+ silences a recorder that another app took over
 #elif defined(MA_APPLE_MOBILE)
     if(d->running && g_osInterrupted.load()){ taken = true; w = MicReason::SystemInterruption; }
