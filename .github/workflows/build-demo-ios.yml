@@ -7,6 +7,8 @@ on:
   push:
     paths:
       - 'ios-demo/**'
+      - 'libs/webrtc/build_ios.sh'
+      - 'src/ravava/**'
       - 'android5-native-demo/app/src/main/cpp/VoiceSession.*'
       - '.github/workflows/build-demo-ios.yml'
 
@@ -27,6 +29,38 @@ jobs:
           done
           tar xf opus.tar.gz
 
+      # ---------------------------------------------------------------- webrtc-audio-processing (echo / noise / AGC), optional
+      - name: Cache webrtc-audio-processing
+        id: webrtc_cache
+        uses: actions/cache@v4
+        with:
+          path: webrtc-install
+          key: webrtc-1.3-ios-arm64-${{ env.IOS_MIN }}-${{ hashFiles('libs/webrtc/build_ios.sh') }}
+
+      - name: Build webrtc-audio-processing (iphoneos arm64)
+        if: steps.webrtc_cache.outputs.cache-hit != 'true'
+        continue-on-error: true            # no echo cancellation is better than no IPA
+        run: |
+          brew install meson ninja
+          mkdir -p webrtc-src
+          if ! curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 300 \
+                -o webrtc.tar.xz "https://freedesktop.org/software/pulseaudio/webrtc-audio-processing/webrtc-audio-processing-1.3.tar.xz"; then
+            echo "Primary server failed. Trying GitLab..."
+            curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 300 \
+                -o webrtc.tar.xz "https://gitlab.freedesktop.org/pulseaudio/webrtc-audio-processing/-/archive/v1.3/webrtc-audio-processing-v1.3.tar.gz"
+          fi
+          tar xf webrtc.tar.xz -C webrtc-src --strip-components=1
+          libs/webrtc/build_ios.sh webrtc-src iphoneos webrtc-install
+
+      - name: Is webrtc available?
+        id: webrtc
+        run: |
+          if [ -f webrtc-install/lib/libwebrtc-audio-processing-1.a ]; then
+            echo "root=$GITHUB_WORKSPACE/webrtc-install" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::webrtc-audio-processing was not built for iOS: the app has no echo cancellation"
+          fi
+
       - name: Build Opus + libRavAva (iphoneos arm64)
         run: |
           set -euxo pipefail
@@ -40,14 +74,18 @@ jobs:
                 -DOPUS_INSTALL_CMAKE_CONFIG_MODULE=OFF
           cmake --build opus-build -j 4
           cmake --install opus-build
+          WEBRTC_ROOT="${{ steps.webrtc.outputs.root }}"
+          if [ -n "$WEBRTC_ROOT" ]; then WARGS=(-DRAVAVA_WITH_WEBRTC=ON "-DRAVAVA_WEBRTC_ROOT=$WEBRTC_ROOT"); else WARGS=(-DRAVAVA_WITH_WEBRTC=OFF); fi
           cmake -S src/ravava -B ravava-build "${FLAGS[@]}" \
-                -DCMAKE_INSTALL_PREFIX="$PWD/ravava-$sdk" -DRAVAVA_WITH_WEBRTC=OFF \
+                -DCMAKE_INSTALL_PREFIX="$PWD/ravava-$sdk" "${WARGS[@]}" \
                 -DRAVAVA_OPUS_ROOT="$PWD/opus-$sdk" \
                 -DRAVAVA_OPUS_INCLUDE_DIR="$PWD/opus-$sdk/include/opus" -DRAVAVA_OPUS_LIB="$PWD/opus-$sdk/lib/libopus.a"
           cmake --build ravava-build -j 4
           cmake --install ravava-build
           mkdir -p build-ios-lib
-          libtool -static -o build-ios-lib/libRavAva.a "ravava-$sdk/lib/libRavAva.a" "opus-$sdk/lib/libopus.a"
+          EXTRA=()
+          [ -n "$WEBRTC_ROOT" ] && EXTRA=("$WEBRTC_ROOT/lib/libwebrtc-audio-processing-1.a")
+          libtool -static -o build-ios-lib/libRavAva.a "ravava-$sdk/lib/libRavAva.a" "opus-$sdk/lib/libopus.a" ${EXTRA[@]+"${EXTRA[@]}"}
           cp -R "ravava-$sdk/include" build-ios-lib/include
           lipo -info build-ios-lib/libRavAva.a
 
