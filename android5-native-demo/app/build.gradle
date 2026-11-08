@@ -17,8 +17,11 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17 -fexceptions -frtti -O2"
-                arguments "-DANDROID_STL=c++_shared",
-                          "-DRAVAVA_WITH_WEBRTC=OFF"
+                // webrtc-audio-processing (echo / noise / AGC / high-pass): -PwebrtcRoot=<output of libs/webrtc/build_android.sh for this ABI>
+                def cmakeArgs = ["-DANDROID_STL=c++_shared"]
+                if (project.hasProperty('webrtcRoot'))
+                    cmakeArgs << "-DWEBRTC_ROOT=${project.property('webrtcRoot')}".toString()
+                arguments(*cmakeArgs)
             }
         }
 
