@@ -1,0 +1,83 @@
+# Builds the RavAva iPhone demo (ios-demo/) as an UNSIGNED .ipa on a macOS runner (no Mac needed by the developer).
+# The .ipa is signed later on the PC with Sideloadly / AltStore using a free Apple ID (see ios-demo/README.md).
+name: Build Demo iOS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'ios-demo/**'
+      - 'android5-native-demo/app/src/main/cpp/VoiceSession.*'
+      - '.github/workflows/build-demo-ios.yml'
+
+jobs:
+  ios-demo:
+    runs-on: macos-latest
+    env:
+      OPUS_VERSION: "1.5.2"
+      IOS_MIN: "14.0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Opus
+        run: |
+          for url in "https://downloads.xiph.org/releases/opus/opus-${OPUS_VERSION}.tar.gz" \
+                     "https://ftp.osuosl.org/pub/xiph/releases/opus/opus-${OPUS_VERSION}.tar.gz"; do
+            curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 180 -o opus.tar.gz "$url" && break
+          done
+          tar xf opus.tar.gz
+
+      - name: Build Opus + libRavAva (iphoneos arm64)
+        run: |
+          set -euxo pipefail
+          sdk=iphoneos
+          FLAGS=(-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=$sdk -DCMAKE_OSX_ARCHITECTURES=arm64
+                 -DCMAKE_OSX_DEPLOYMENT_TARGET=$IOS_MIN -DCMAKE_BUILD_TYPE=Release
+                 -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY)
+          cmake -S "opus-${OPUS_VERSION}" -B opus-build "${FLAGS[@]}" \
+                -DCMAKE_INSTALL_PREFIX="$PWD/opus-$sdk" -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+                -DOPUS_BUILD_PROGRAMS=OFF -DOPUS_BUILD_TESTING=OFF -DOPUS_INSTALL_PKG_CONFIG_MODULE=OFF \
+                -DOPUS_INSTALL_CMAKE_CONFIG_MODULE=OFF
+          cmake --build opus-build -j 4
+          cmake --install opus-build
+          cmake -S src/ravava -B ravava-build "${FLAGS[@]}" \
+                -DCMAKE_INSTALL_PREFIX="$PWD/ravava-$sdk" -DRAVAVA_WITH_WEBRTC=OFF \
+                -DRAVAVA_OPUS_ROOT="$PWD/opus-$sdk" \
+                -DRAVAVA_OPUS_INCLUDE_DIR="$PWD/opus-$sdk/include/opus" -DRAVAVA_OPUS_LIB="$PWD/opus-$sdk/lib/libopus.a"
+          cmake --build ravava-build -j 4
+          cmake --install ravava-build
+          mkdir -p build-ios-lib
+          libtool -static -o build-ios-lib/libRavAva.a "ravava-$sdk/lib/libRavAva.a" "opus-$sdk/lib/libopus.a"
+          cp -R "ravava-$sdk/include" build-ios-lib/include
+          lipo -info build-ios-lib/libRavAva.a
+
+      - name: Generate the Xcode project
+        run: |
+          brew install xcodegen
+          cd ios-demo && xcodegen generate
+
+      - name: Build the app (unsigned)
+        run: |
+          set -euxo pipefail
+          cd ios-demo
+          xcodebuild -project RavAvaDemo.xcodeproj -scheme RavAvaDemo -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            | tee build.log | tail -n 60
+          test -d build/Build/Products/Release-iphoneos/RavAva.app
+
+      - name: Pack the .ipa
+        run: |
+          set -euxo pipefail
+          mkdir -p Payload
+          cp -R ios-demo/build/Build/Products/Release-iphoneos/RavAva.app Payload/
+          plutil -p Payload/RavAva.app/Info.plist | head -20
+          lipo -info Payload/RavAva.app/RavAva
+          zip -qr RavAva-iOS-unsigned.ipa Payload
+          ls -l RavAva-iOS-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RavAva-iOS-unsigned-ipa
+          path: RavAva-iOS-unsigned.ipa
+          retention-days: 30

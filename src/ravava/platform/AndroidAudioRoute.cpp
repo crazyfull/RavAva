@@ -880,6 +880,31 @@ void ReleaseStream(bool routeHeld)
 
 // The system changes the communication device / mode by itself (call, USB cable, a headset connecting): like every call
 // app, look at it about once a second and put our route back (or follow a newly connected headset in automatic mode).
+// API < 31: does the speakerphone / SCO state still match the route we chose? (another app's call ends with setSpeakerphoneOn(false);
+// the mode stays IN_COMMUNICATION, so the mode alone does not show that the sound went back to the earpiece)
+static bool legacyRouteMatches(Env &env, jobject am, int wantId)
+{
+    auto flag = [&](const char *name) {
+        jmethodID m = methodOf(env, am, name, "()Z");
+        const bool r = m && env->CallBooleanMethod(am, m) != JNI_FALSE;
+        env.failed();
+        return r;
+    };
+    int bestKind = -1;
+    for(const Dev &d : getDevices(env, am, 2)){
+        const int k = kindOf(d.type);
+        if(k == KindOther) continue;
+        if(wantId != 0 && d.id == wantId){ bestKind = k; break; }
+        if(bestKind < 0 || k < bestKind) bestKind = k;
+    }
+    switch(bestKind){
+    case KindBluetooth: return flag("isBluetoothScoOn");
+    case KindSpeaker:   return flag("isSpeakerphoneOn");
+    case -1:            return true;
+    default:            return !flag("isSpeakerphoneOn");   // earpiece / wired / USB
+    }
+}
+
 void ReassertRoute()
 {
     static int64_t lastMs = 0;
@@ -915,6 +940,8 @@ void ReassertRoute()
     }
 
     bool ok = (mode == 3);              // MODE_IN_COMMUNICATION: still the one we set
+    if(ok && sdkInt(env) < 31)
+        ok = legacyRouteMatches(env, am.get(), g_wantId);
     if(ok && sdkInt(env) >= 31){
         std::vector<CommItem> items = commItems(env, am.get());
         const int want = pickIndex(items, g_wantId);
