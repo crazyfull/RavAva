@@ -1,35 +1,152 @@
-RavAva - Proprietary License
-============================
+# RavAva Community & Commercial License
 
-Copyright (c) 2026 Mojtaba Kahvand. All rights reserved.
-Author: Mojtaba Kahvand
+**Copyright (c) 2026 Mojtaba Kahvand. All Rights Reserved.**
 
-THIS SOFTWARE IS NOT FREE SOFTWARE AND NOT OPEN SOURCE.
+RavAva is proprietary software developed and maintained by Mojtaba Kahvand.
 
-The source code, headers, build files, documentation, examples and tests in this repository (together "RavAva") are the
-exclusive property of the author. Seeing the code (for example because the repository is visible to you) does NOT give you
-any right to use it.
+This license governs the use, modification, and distribution of the RavAva software library and its associated source code.
 
-1. Without a written license agreement signed or otherwise granted in writing by the author, you may NOT:
-   - use RavAva, in whole or in part, in any product, service, project or internal tool, commercial or not;
-   - copy, modify, translate, adapt, merge, compile, link, sublicense, sell, rent, lend, publish or distribute RavAva,
-     in source or binary form, or any work derived from it;
-   - remove or change this notice or the copyright / author lines in the files;
-   - use RavAva, its code or its documentation to train, fine-tune or evaluate machine-learning models.
+By using, copying, modifying, or distributing RavAva, you agree to the terms of this license.
 
-2. A license, if granted, is limited to the terms written in that agreement (scope, number of products, time, fee).
-   Everything that is not expressly granted is reserved.
+---
 
-3. Third-party components keep their own licenses, which are not changed by this file:
-   - miniaudio (miniaudio/) - public domain or MIT No Attribution, by David Reid;
-   - Opus (libopus) - BSD 3-clause, Xiph.Org Foundation, Skype Limited, Octasic, Jean-Marc Valin, Timothy B. Terriberry,
-     CSIRO, Gregory Maxwell, Mark Borgerding, Erik de Castro Lopo, Microsoft Corporation;
-   - webrtc-audio-processing (optional, not part of this repository) - BSD 3-clause, The WebRTC project authors, and the
-     licenses of the libraries it contains (abseil: Apache 2.0, ...).
-   Whoever distributes a product that contains them must follow their license texts.
+## 1. Definitions
 
-4. NO WARRANTY. RAVAVA IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY,
-   FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. THE AUTHOR IS NOT LIABLE FOR ANY CLAIM, DAMAGE OR OTHER LIABILITY
-   ARISING FROM THE SOFTWARE OR ITS USE.
+For the purposes of this license:
 
-Contact for licensing: Mojtaba Kahvand <mojtaba.kahvand@gmail.com>
+- **Software** means the RavAva library, its source code, headers, binaries, documentation, and associated materials.
+- **Author** means Mojtaba Kahvand, the original copyright holder.
+- **Dynamic Linking** means using RavAva as a separately compiled shared library, such as a `.dll`, `.so`, or `.dylib`.
+- **Static Linking** means linking RavAva into an application as a static library or incorporating its compiled object code into the application binary.
+- **Commercial Use** means using the Software as part of a product, service, or activity intended to generate revenue or provide a commercial advantage.
+- **Application** means software developed by a licensee that uses or links against RavAva.
+
+## 2. Permitted Use
+
+### 2.1 Personal and Non-Commercial Use
+
+You are permitted to:
+
+- Use RavAva for personal, educational, research, and non-commercial projects.
+- Compile and build the library from source.
+- Modify the source code for personal or non-commercial purposes.
+- Distribute original or modified versions for non-commercial purposes, provided that this license and all copyright notices are retained.
+
+No additional permission or payment is required for these activities.
+
+### 2.2 Commercial Use with Dynamic Linking
+
+Commercial applications may use RavAva through Dynamic Linking without purchasing a commercial license.
+
+The following conditions apply:
+
+- The RavAva library must remain identifiable as RavAva.
+- Copyright notices and attribution to Mojtaba Kahvand must be preserved.
+- The library must not be presented as an independently developed product of another party.
+- The library itself must not be sold or redistributed as a standalone commercial product without written permission from the Author.
+
+Applications using RavAva through Dynamic Linking may remain proprietary and closed-source.
+
+### 2.3 Commercial Use with Static Linking
+
+Commercial applications using RavAva through Static Linking must satisfy one of the following conditions:
+
+**Option A — Source Code Availability**
+
+The complete corresponding source code of the Application that statically links RavAva must be made available to its recipients under a license that permits access, modification, and redistribution of that source code.
+
+This requirement applies to the Application's corresponding source code, not to unrelated software, independent libraries, or third-party components.
+
+Any modifications made to RavAva itself must retain the original copyright notices and remain subject to this license unless separately authorized in writing.
+
+**Option B — Commercial License**
+
+The licensee may obtain a separate commercial license from the Author.
+
+A commercial license may grant permission to use RavAva through Static Linking in proprietary and closed-source commercial applications without the source code publication requirement.
+
+Commercial license terms, fees, and additional permissions are subject to a separate written agreement with the Author.
+
+## 3. Modification
+
+You may modify RavAva for personal and non-commercial purposes.
+
+Modified versions must:
+
+- Retain all original copyright notices.
+- Clearly identify modifications where reasonably practical.
+- Include a copy of this license.
+- Not remove or misrepresent the original authorship of RavAva.
+
+Commercial distribution of modified versions is subject to the applicable commercial-use conditions in Section 2.
+
+## 4. Redistribution
+
+Redistribution of RavAva in source or binary form is permitted for personal and non-commercial purposes, provided that:
+
+- This license is included with the distribution.
+- All copyright and attribution notices are retained.
+- The Software is not represented as being released under a different license.
+
+Commercial redistribution of RavAva as a standalone library, SDK, or development product requires prior written permission from the Author.
+
+## 5. Restrictions
+
+You may not:
+
+- Remove or alter copyright notices or attribution.
+- Claim ownership or original authorship of RavAva.
+- Rebrand, rename, or redistribute RavAva as an independently developed library.
+- Sell or sublicense RavAva itself as a standalone product without authorization.
+- Grant rights to RavAva that conflict with this license.
+- Use the Author's name or trademarks to imply endorsement without written permission.
+
+## 6. Third-Party Components
+
+RavAva may include, use, or depend on third-party libraries and components.
+
+Such components are governed by their respective licenses, not by this license.
+
+Users and distributors are responsible for complying with the applicable third-party license terms, including attribution, notices, and redistribution requirements.
+
+Nothing in this license overrides or replaces the licenses of third-party components.
+
+## 7. Ownership and Intellectual Property
+
+RavAva and its original source code remain the intellectual property of Mojtaba Kahvand.
+
+This license grants limited permissions to use, modify, and distribute the Software under the conditions described herein.
+
+No ownership rights, trademarks, patents, or other intellectual property rights are transferred by this license unless expressly stated in a separate written agreement.
+
+## 8. Termination
+
+Any violation of the terms of this license automatically terminates the permissions granted to the violating party.
+
+Upon termination, the violating party must stop using and distributing the Software unless and until the violation is resolved or a separate written authorization is obtained from the Author.
+
+## 9. Disclaimer of Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+THE AUTHOR SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM THE USE OF OR INABILITY TO USE THE SOFTWARE.
+
+## 10. Commercial Licensing and Contact
+
+For commercial licensing, proprietary Static Linking, redistribution rights, or additional permissions, please contact:
+
+**Mojtaba Kahvand**
+
+GitHub: https://github.com/crazyfull/RavAva
+
+A separate written agreement may establish additional rights and conditions.
+
+## 11. Governing Law
+
+The governing law and jurisdiction for disputes arising from this license shall be established by the Author in a separate written agreement or as otherwise determined by applicable law.
+
+---
+
+**End of License**
+
+Copyright (c) 2026 Mojtaba Kahvand. All Rights Reserved.
