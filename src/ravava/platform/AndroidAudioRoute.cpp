@@ -228,10 +228,40 @@ static bool readDevice(Env &env, jobject info, Dev &d)
     return true;
 }
 
+// Android 5 / 5.1 (API 21-22) has no AudioManager.getDevices(): the devices are built from the old yes/no questions (wired headset
+// plugged in? Bluetooth headset connected?). The ids are made up (they only have to differ and match what the list returned).
+static std::vector<Dev> legacyDevices(Env &env, jobject am, int flags)
+{
+    auto yes = [&](const char *name) {
+        jmethodID m = methodOf(env, am, name, "()Z");
+        const bool r = m && env->CallBooleanMethod(am, m) != JNI_FALSE;
+        env.failed();
+        return r;
+    };
+    const bool wired = yes("isWiredHeadsetOn");
+    const bool bt = yes("isBluetoothScoAvailableOffCall") && (yes("isBluetoothA2dpOn") || yes("isBluetoothScoOn"));
+    std::vector<Dev> out;
+    auto add = [&](int id, int type, bool source) { Dev d; d.id = id; d.type = type; d.source = source; d.sink = !source; out.push_back(d); };
+    if(flags & 2){
+        add(1001, 1, false);                    // earpiece
+        add(1002, 2, false);                    // speaker
+        if(wired) add(1003, 3, false);
+        if(bt)    add(1004, 7, false);
+    }
+    if(flags & 1){
+        add(1011, 15, true);                    // the phone's microphone
+        if(wired) add(1012, 3, true);
+        if(bt)    add(1013, 7, true);
+    }
+    return out;
+}
+
 // AudioManager.getDevices(flags): 1 = inputs, 2 = outputs, 3 = both
 static std::vector<Dev> getDevices(Env &env, jobject am, int flags)
 {
     std::vector<Dev> out;
+    if(sdkInt(env) < 23)
+        return legacyDevices(env, am, flags);
     jmethodID m = methodOf(env, am, "getDevices", "(I)[Landroid/media/AudioDeviceInfo;");
     if(!m) return out;
     Ref arr(env.get(), env->CallObjectMethod(am, m, jint(flags)));
@@ -954,6 +984,12 @@ int StreamDeviceId(void *aaudioStream)
     if(!fn || !aaudioStream)
         return -1;
     return int(fn(aaudioStream));
+}
+
+int SdkInt()
+{
+    Env env;
+    return env ? sdkInt(env) : 0;
 }
 
 std::string DescribeDeviceId(int deviceId, bool capture)

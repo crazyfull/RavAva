@@ -80,6 +80,8 @@ std::string DescribeDeviceId(int deviceId, bool capture);
 // the speaker to the earpiece and silences the headset. No-op while no Bluetooth route is held. Never waits.
 void ReassertRoute();
 
+// Android version (API level), 0 if unknown.
+int SdkInt();
 // true while the phone rings / is in a real call. JNI: not the audio thread.
 bool IsPhoneBusy();
 // Who has the microphone (ask while our own capture stream is closed): 1 = busy (*reason 1 = phone call, 2 = another app), 0 = free,
