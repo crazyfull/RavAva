@@ -6,7 +6,11 @@ Not yet released as a number: everything below is in 0.1.0.
 
 ## 0.1.0 (in development)
 
+### Fixed
+- iOS: after a phone call / Siri the audio did not come back. iOS leaves the AVAudioSession inactive after an interruption and miniaudio activates it only once (when its context is created), so the re-opened devices started but stayed silent. `platform/IosAudioSession.cpp` now activates the session when the interruption ends and before every device (re)open.
+
 ### Added
+- iOS demo: the Log tab shows the library's own log (devices, interruptions) and "Copy log" includes it.
 - Android static library: `.github/workflows/build-static-library-android.yml` -> `RavAva-Android-static` (`lib/<abi>/libRavAva.a` with Opus and webrtc merged in, `include/`; armeabi-v7a and x86 without webrtc so Android 5 stays supported). The native demo builds against it (`-PravavaPrebuilt`). `src/ravava/CMakeLists.txt` finds `libwebrtc_apm.a` on Android and sets the miniaudio Android backends.
 - iOS: a call / Siri / another app taking the audio session is reported like on Android (`MicEvent::Interrupted`, `MicReason::SystemInterruption`, then `Free`); the speaker is re-opened by `Player::KeepDevice()` after the interruption (`OsAudioInterrupted()`), the microphone by the `automaticResumeAfterFreeMic` logic. A missed "interruption ended" expires after 2 minutes.
 - Android: `android::SetAudioFocusLost()`: the application forwards the audio focus (a call of another app: Telegram, WhatsApp...); while it is lost the recorder stops the microphone (`MicEvent::Interrupted`, `MicReason::OtherApp`) and reports `Free` when it is back.
