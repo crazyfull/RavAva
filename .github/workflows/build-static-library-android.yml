@@ -1,0 +1,183 @@
+# Builds libRavAva for Android as ONE static library per ABI: RavAva + Opus + webrtc-audio-processing (echo cancellation,
+# noise suppression, AGC) merged into lib/<abi>/libRavAva.a, with every header an app needs in include/.
+#   arm64-v8a, x86_64, x86 : with webrtc
+#   armeabi-v7a            : WITHOUT webrtc, on purpose: webrtc needs API 24 on 32-bit ARM and the library supports Android 5 (API 21)
+# Used by hand (Run workflow -> artifact "RavAva-Android-static") and by build-native-android.yml (workflow_call), so there is
+# exactly one place that builds the Android library.
+# Built with NDK 26.1, minSdk 21, STL c++_shared (the app must use c++_shared too: ANDROID_STL=c++_shared).
+# If the webrtc build of an ABI fails that ABI is still built, without echo cancellation (a warning says so).
+name: Build static library Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      abis:
+        description: 'ABIs as a JSON array'
+        default: '["arm64-v8a","armeabi-v7a","x86_64","x86"]'
+  workflow_call:
+    inputs:
+      abis:
+        type: string
+        default: '["arm64-v8a","armeabi-v7a","x86_64","x86"]'
+
+jobs:
+  slice:
+    name: slice ${{ matrix.abi }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: ${{ fromJSON(inputs.abis || '["arm64-v8a","armeabi-v7a","x86_64","x86"]') }}
+    env:
+      OPUS_VERSION: "1.5.2"
+      NDK_VERSION: "26.1.10909125"
+      API: "21"
+      # webrtc-audio-processing is not built for 32-bit ARM (needs API 24, we keep API 21 for Android 5)
+      WITH_WEBRTC: ${{ matrix.abi != 'armeabi-v7a' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the NDK
+        run: |
+          SDK=/usr/local/lib/android/sdk
+          SM=$(find $SDK/cmdline-tools -name sdkmanager 2>/dev/null | sort -V | tail -1)
+          yes | $SM --licenses >/dev/null 2>&1 || true
+          $SM --install "ndk;${NDK_VERSION}"
+          echo "ANDROID_NDK_ROOT=$SDK/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+          echo "NDK_BIN=$SDK/ndk/${NDK_VERSION}/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_ENV
+
+      - name: Fetch Opus
+        run: |
+          for url in "https://downloads.xiph.org/releases/opus/opus-${OPUS_VERSION}.tar.gz" \
+                     "https://ftp.osuosl.org/pub/xiph/releases/opus/opus-${OPUS_VERSION}.tar.gz"; do
+            curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 180 -o opus.tar.gz "$url" && break
+          done
+          tar xf opus.tar.gz
+
+      # ---------------------------------------------------------------- webrtc-audio-processing (echo / noise / AGC), optional
+      - name: Cache webrtc-audio-processing
+        if: env.WITH_WEBRTC == 'true'
+        id: webrtc_cache
+        uses: actions/cache@v4
+        with:
+          path: webrtc-install
+          key: webrtc-1.3-native-android-${{ matrix.abi }}-api21-ndk26.1.10909125-${{ hashFiles('libs/webrtc/build_android.sh') }}
+
+      - name: Build webrtc-audio-processing (${{ matrix.abi }})
+        if: env.WITH_WEBRTC == 'true' && steps.webrtc_cache.outputs.cache-hit != 'true'
+        continue-on-error: true            # no echo cancellation is better than no library
+        env:
+          ANDROID_API: ${{ env.API }}
+        run: |
+          pip install meson ninja
+          mkdir -p webrtc-src
+          if ! curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 300 \
+                -o webrtc.tar.xz "https://freedesktop.org/software/pulseaudio/webrtc-audio-processing/webrtc-audio-processing-1.3.tar.xz"; then
+            echo "Primary server failed. Trying GitLab..."
+            curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 300 \
+                -o webrtc.tar.xz "https://gitlab.freedesktop.org/pulseaudio/webrtc-audio-processing/-/archive/v1.3/webrtc-audio-processing-v1.3.tar.gz"
+          fi
+          tar xf webrtc.tar.xz -C webrtc-src --strip-components=1
+          libs/webrtc/build_android.sh webrtc-src ${{ matrix.abi }} webrtc-install
+
+      - name: Is webrtc available?
+        id: webrtc
+        run: |
+          if [ "$WITH_WEBRTC" = true ] && [ -f webrtc-install/lib/libwebrtc_apm.a ]; then
+            echo "root=$GITHUB_WORKSPACE/webrtc-install" >> "$GITHUB_OUTPUT"
+          else
+            echo "root=" >> "$GITHUB_OUTPUT"
+            [ "$WITH_WEBRTC" = true ] && echo "::warning::webrtc-audio-processing was not built for ${{ matrix.abi }}: this slice has no echo cancellation"
+            true
+          fi
+
+      # ---------------------------------------------------------------- Opus + RavAva, merged into one archive
+      - name: Build Opus + libRavAva (${{ matrix.abi }})
+        run: |
+          set -euxo pipefail
+          abi=${{ matrix.abi }}
+          FLAGS=(-DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake"
+                 -DANDROID_ABI=$abi -DANDROID_PLATFORM=android-$API -DANDROID_STL=c++_shared
+                 -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON)
+          cmake -S "opus-${OPUS_VERSION}" -B opus-build "${FLAGS[@]}" \
+                -DCMAKE_INSTALL_PREFIX="$PWD/opus-$abi" -DBUILD_SHARED_LIBS=OFF \
+                -DOPUS_BUILD_PROGRAMS=OFF -DOPUS_BUILD_TESTING=OFF -DOPUS_INSTALL_PKG_CONFIG_MODULE=OFF \
+                -DOPUS_INSTALL_CMAKE_CONFIG_MODULE=OFF
+          cmake --build opus-build -j 4
+          cmake --install opus-build
+
+          WEBRTC_ROOT="${{ steps.webrtc.outputs.root }}"
+          if [ -n "$WEBRTC_ROOT" ]; then
+            WARGS=(-DRAVAVA_WITH_WEBRTC=ON "-DRAVAVA_WEBRTC_ROOT=$WEBRTC_ROOT"
+                   -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH)
+          else
+            WARGS=(-DRAVAVA_WITH_WEBRTC=OFF)
+          fi
+          cmake -S src/ravava -B ravava-build "${FLAGS[@]}" \
+                -DCMAKE_INSTALL_PREFIX="$PWD/ravava-$abi" "${WARGS[@]}" \
+                -DRAVAVA_OPUS_ROOT="$PWD/opus-$abi" \
+                -DRAVAVA_OPUS_INCLUDE_DIR="$PWD/opus-$abi/include/opus" -DRAVAVA_OPUS_LIB="$PWD/opus-$abi/lib/libopus.a"
+          cmake --build ravava-build -j 4
+          cmake --install ravava-build
+
+          # one archive: RavAva + Opus (+ webrtc), merged with llvm-ar
+          mkdir -p "slice/lib/$abi"
+          { echo "create $PWD/slice/lib/$abi/libRavAva.a"
+            echo "addlib $PWD/ravava-$abi/lib/libRavAva.a"
+            echo "addlib $PWD/opus-$abi/lib/libopus.a"
+            [ -n "$WEBRTC_ROOT" ] && echo "addlib $WEBRTC_ROOT/lib/libwebrtc_apm.a"
+            echo "save"; echo "end"; } | "$NDK_BIN/llvm-ar" -M
+          "$NDK_BIN/llvm-ranlib" "slice/lib/$abi/libRavAva.a"
+          cp -R "ravava-$abi/include" slice/include
+          { echo "abi: $abi"
+            echo "webrtc (echo cancellation, noise suppression, AGC): $([ -n "$WEBRTC_ROOT" ] && echo yes || echo no)"
+            echo "minSdk: $API   NDK: $NDK_VERSION   STL: c++_shared   Opus: $OPUS_VERSION"; } > "slice/lib/$abi/BUILD-INFO.txt"
+          cat "slice/lib/$abi/BUILD-INFO.txt"
+          ls -l "slice/lib/$abi"
+
+      - name: Link smoke test
+        run: |
+          set -euxo pipefail
+          case "${{ matrix.abi }}" in
+            arm64-v8a)   T=aarch64-linux-android$API ;;
+            armeabi-v7a) T=armv7a-linux-androideabi$API ;;
+            x86_64)      T=x86_64-linux-android$API ;;
+            x86)         T=i686-linux-android$API ;;
+          esac
+          "$NDK_BIN/$T-clang++" -std=c++17 -shared -fPIC ci/android_smoke.cpp -I slice/include -I slice/include/ravava \
+              slice/lib/${{ matrix.abi }}/libRavAva.a -static-libstdc++ -llog -landroid -lOpenSLES -ldl -lm \
+              -o smoke.so
+          file smoke.so
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: slice-${{ matrix.abi }}
+          path: slice
+          retention-days: 3
+
+  package:
+    needs: slice
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: slice-*
+          path: slices
+      - name: Pack RavAva-Android-static
+        run: |
+          set -euxo pipefail
+          mkdir -p RavAva-Android-static/lib
+          for d in slices/slice-*; do
+            [ -d RavAva-Android-static/include ] || cp -R "$d/include" RavAva-Android-static/include
+            cp -R "$d"/lib/* RavAva-Android-static/lib/
+          done
+          cp example/ANDROID.md RavAva-Android-static/README.md
+          cat RavAva-Android-static/lib/*/BUILD-INFO.txt
+          find RavAva-Android-static -maxdepth 3 | sort
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RavAva-Android-static
+          path: RavAva-Android-static
+          retention-days: 30

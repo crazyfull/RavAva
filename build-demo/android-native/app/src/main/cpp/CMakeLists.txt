@@ -21,6 +21,23 @@ message(STATUS "RAVAVA_ROOT = ${RAVAVA_ROOT}")
 message(STATUS "RAVAVA_SRC  = ${RAVAVA_SRC}")
 
 # ---------------------------------------------------------------------------
+# libRavAva: either the PREBUILT static library (RavAva + Opus + webrtc in one file, from the workflow
+# "Build static library Android": -DRAVAVA_PREBUILT=<RavAva-Android-static>), or built here from the sources + Opus from source.
+# ---------------------------------------------------------------------------
+set(RAVAVA_PREBUILT "" CACHE PATH "unpacked RavAva-Android-static (lib/<abi>/libRavAva.a, include/)")
+if(RAVAVA_PREBUILT)
+    set(_prebuilt_lib "${RAVAVA_PREBUILT}/lib/${ANDROID_ABI}/libRavAva.a")
+    if(NOT EXISTS "${_prebuilt_lib}")
+        message(FATAL_ERROR "RAVAVA_PREBUILT: ${_prebuilt_lib} not found")
+    endif()
+    message(STATUS "libRavAva: PREBUILT ${_prebuilt_lib}")
+    add_library(ravava_static STATIC IMPORTED)
+    set_target_properties(ravava_static PROPERTIES
+        IMPORTED_LOCATION "${_prebuilt_lib}"
+        INTERFACE_INCLUDE_DIRECTORIES "${RAVAVA_PREBUILT}/include;${RAVAVA_PREBUILT}/include/ravava"
+        INTERFACE_LINK_LIBRARIES "log;android;OpenSLES;dl;m")
+else()
+# ---------------------------------------------------------------------------
 # Opus (static, from source)
 # CMake 3.22 (Android SDK) does not accept DOWNLOAD_EXTRACT_TIMESTAMP here.
 # ---------------------------------------------------------------------------
@@ -79,6 +96,8 @@ if(WEBRTC_ROOT AND EXISTS "${WEBRTC_ROOT}/lib/libwebrtc_apm.a" AND EXISTS "${WEB
     target_link_libraries(ravava_static PUBLIC "${WEBRTC_ROOT}/lib/libwebrtc_apm.a")
 else()
     message(STATUS "WebRTC audio processing: OFF (no WEBRTC_ROOT): no echo cancellation / noise suppression / AGC")
+endif()
+
 endif()
 
 # ---------------------------------------------------------------------------

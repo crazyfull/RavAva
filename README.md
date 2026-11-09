@@ -604,13 +604,21 @@ target_link_libraries(myapp PRIVATE RavAva::RavAva)
 
 ### 12.5 Android (NDK)
 
+You do not have to build it yourself: `.github/workflows/build-static-library-android.yml` builds one `libRavAva.a` per ABI
+(RavAva + Opus + webrtc merged; `armeabi-v7a` without webrtc because webrtc needs API 24 on 32-bit ARM and the library supports
+Android 5) with all headers (artifact `RavAva-Android-static`). Link it with `ANDROID_STL=c++_shared` and the system libraries
+`log android OpenSLES dl m`. Step-by-step Gradle / CMake integration, dependencies and troubleshooting: `example/ANDROID.md`
+(also inside the artifact as `README.md`). The demo `build-demo/android-native/` is built against exactly that artifact
+(`-PravavaPrebuilt=...`).
+
+To build the library by hand with the NDK:
+
 ```bash
 cmake -S src/ravava -B build-android \
   -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
-  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 \
-  -DRAVAVA_OPUS_ROOT=<opus-prefix>
+  -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 -DANDROID_STL=c++_shared \
+  -DRAVAVA_OPUS_ROOT=<opus-prefix> [-DRAVAVA_WEBRTC_ROOT=<libs/webrtc/build_android.sh output>]
 ```
-A complete, working integration is `build-demo/android-native/` (Gradle + CMake builds the library sources directly, one ABI per job).
 
 ### 12.6 iOS
 
@@ -643,7 +651,7 @@ of the demo app. To use the library: drag the xcframework into Xcode, add `-ObjC
   volume and gain, **microphone events**, music and monitor, **zero allocations on the audio thread**, callback time, stress / fuzz, and
   echo-canceller tests when webrtc is present. Run: `cmake -S src/ravava -B build -DRAVAVA_BUILD_TESTS=ON && cmake --build build && cd build && ctest`.
 - **CI** (GitHub Actions): Linux package + consumer build; **ThreadSanitizer** run of the real-time tests; macOS CLI (arm64 + Intel);
-  iOS `RavAva.xcframework` (device + simulator, Opus + webrtc inside) and the unsigned demo `.ipa`; Android native demo APKs (per ABI); Qt demo builds for Windows, Linux, macOS and Android.
+  iOS `RavAva.xcframework` (device + simulator, Opus + webrtc inside) and the unsigned demo `.ipa`; the Android static library (Opus + webrtc inside, per ABI) and the native demo APKs; Qt demo builds for Windows, Linux, macOS and Android.
 - Audio on real hardware (devices, Bluetooth, calls) cannot run in CI: it is tested on real phones and PCs by hand.
 
 ---
