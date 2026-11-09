@@ -175,7 +175,7 @@ void Recorder::KeepDevice()
         }else{
             const bool running = m_input.IsRunning();
             MicReason w = MicReason::Unknown;
-            if(running && m_input.Interrupted(&w)){
+            if(m_input.Interrupted(&w)){            // (needs the input to be wanted, not to be alive: on iOS the OS has already stopped it)
                 RAVAVA_WARN("recorder: the microphone was taken by the system (reason %d), stopping it", int(w));
                 m_input.Stop();
                 m_cache.clear();

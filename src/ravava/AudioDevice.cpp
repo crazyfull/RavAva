@@ -540,7 +540,12 @@ bool AudioInput::DeviceMoved()
 }
 
 bool AudioInput::IsRunning() const {
+#ifdef MA_APPLE_MOBILE
+    // iOS stops the device by itself during a call / Siri (ma_device_stop on 'interruption began'): it is dead although we never stopped it
+    return d->running && ma_device_get_state(&d->dev) == ma_device_state_started;
+#else
     return d->running;
+#endif
 }
 
 // ============================================================== AudioOutput
