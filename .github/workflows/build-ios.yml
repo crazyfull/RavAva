@@ -6,12 +6,6 @@ name: Build iOS
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'src/ravava/**'
-      - 'miniaudio/**'
-      - 'ci/**'
-      - '.github/workflows/build-ios.yml'
 
 jobs:
   ios:
