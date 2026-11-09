@@ -20,6 +20,9 @@
 
 #include "AudioDevice.h"
 #include "AudioTypes.h"
+#ifdef RAVAVA_IOS
+#include "platform/IosAudioSession.h"
+#endif
 
 // Android: miniaudio can't list devices there and the phone's mic is used even with a Bluetooth headset connected,
 // platform/AndroidAudioRoute.cpp fixes both through AudioManager. RAVAVA_FORCE_ANDROID_ROUTE: syntax check on a PC.
@@ -62,7 +65,12 @@ static const OsInterruptedFlag g_osInterrupted;
 static void onNotification(const ma_device_notification *n)
 {
     if(n->type == ma_device_notification_type_interruption_began){ g_osInterruptedSince = steadyMs(); g_osInterruptedRaw = true; }
-    else if(n->type == ma_device_notification_type_interruption_ended) g_osInterruptedRaw = false;
+    else if(n->type == ma_device_notification_type_interruption_ended){
+        g_osInterruptedRaw = false;
+#ifdef RAVAVA_IOS
+        ios::ActivateAudioSession();    // iOS leaves the session inactive after a call: without this the re-opened devices stay silent
+#endif
+    }
     static const char *names[] = {"started", "stopped", "rerouted", "interruption began", "interruption ended", "unlocked"};
     const int t = int(n->type);
     RAVAVA_INFO("%s device %s", n->pDevice->type == ma_device_type_capture ? "capture" : "playback",
@@ -349,6 +357,9 @@ bool AudioInput::Start(int sampleRate, int channels, int periodMs, Callback cb, 
             haveChosen = stringToId(mics.front().id, chosen);       // the default is a monitor: take the first real microphone
     }
 #endif
+#ifdef RAVAVA_IOS
+    ios::ActivateAudioSession();        // no-op while it is active; after an interruption it makes the new device start for real
+#endif
     std::unique_lock<std::mutex> devLock(g_deviceMutex);
     if(haveChosen){
         cfg.capture.pDeviceID = &chosen;
@@ -614,6 +625,9 @@ bool AudioOutput::Start(int sampleRate, int channels, int periodMs, Callback cb,
     }
 #else
     haveChosen = !d->deviceId.empty() && stringToId(d->deviceId, chosen);
+#endif
+#ifdef RAVAVA_IOS
+    ios::ActivateAudioSession();        // no-op while it is active; after an interruption it makes the new device start for real
 #endif
     std::unique_lock<std::mutex> devLock(g_deviceMutex);
     if(haveChosen){

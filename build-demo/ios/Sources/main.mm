@@ -4,6 +4,9 @@
 #import <AVFoundation/AVFoundation.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #include <memory>
+#include <mutex>
+#include <thread>
+#include <unistd.h>
 #include <string>
 #include <vector>
 #include <ravava/AudioDevice.h>
@@ -19,6 +22,42 @@ static NSString *const kLosses[]      = {@"0", @"10", @"20", @"30", @"40", @"50"
 static NSString *const kNoise[]       = {@"Noise: off", @"Noise: low", @"Noise: moderate", @"Noise: high", @"Noise: very high"};
 static NSString *const kEcho[]        = {@"Echo: off", @"Echo: default", @"Echo: protect voice 1", @"Echo: protect voice 2", @"Echo: protect voice 3"};
 #define ARR(a) ([NSArray arrayWithObjects:a count:sizeof(a) / sizeof(a[0])])
+
+// ---------------------------------------------------------------- library log (what libRavAva prints: devices, interruptions...)
+// stdout / stderr are copied into a small ring buffer so the Log tab can show it (there is no Xcode console on a sideloaded app).
+static std::mutex g_logMutex;
+static NSMutableArray<NSString *> *g_logLines;
+static void StartLogCapture() {
+    g_logLines = [NSMutableArray array];
+    int fds[2];
+    if (pipe(fds) != 0) return;
+    const int orig = dup(STDERR_FILENO);
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    dup2(fds[1], STDOUT_FILENO);
+    dup2(fds[1], STDERR_FILENO);
+    std::thread([fds, orig] {
+        char buf[1024]; std::string pending;
+        for (;;) {
+            ssize_t n = read(fds[0], buf, sizeof buf);
+            if (n <= 0) break;
+            if (orig >= 0) (void)!write(orig, buf, (size_t)n);
+            pending.append(buf, (size_t)n);
+            size_t nl;
+            while ((nl = pending.find('\n')) != std::string::npos) {
+                NSString *line = [[NSString alloc] initWithBytes:pending.data() length:nl encoding:NSUTF8StringEncoding];
+                pending.erase(0, nl + 1);
+                if (!line.length) continue;
+                std::lock_guard<std::mutex> lk(g_logMutex);
+                [g_logLines addObject:line];
+                if (g_logLines.count > 120) [g_logLines removeObjectsInRange:NSMakeRange(0, g_logLines.count - 120)];
+            }
+        }
+    }).detach();
+}
+static NSString *LibLogText() {
+    std::lock_guard<std::mutex> lk(g_logMutex);
+    return g_logLines.count ? [g_logLines componentsJoinedByString:@"\n"] : @"(nothing yet)";
+}
 
 // ---------------------------------------------------------------- small UI helpers
 @interface Picker : UIButton
@@ -114,7 +153,7 @@ static UIProgressView *Bar() { UIProgressView *p = [UIProgressView new]; return 
     UITextField *tfIp, *tfPort;
     UISegmentedControl *segCh;
     UISlider *slVol, *slMic, *slMusic, *slMon;
-    UILabel *lbVol, *lbMic, *lbMusicFile, *lbRate, *lbLog, *lbWebrtc;
+    UILabel *lbVol, *lbMic, *lbMusicFile, *lbRate, *lbLog, *lbLib, *lbWebrtc;
     UIProgressView *barRx, *barMine;
     UIButton *btnStart, *btnStop, *btnTalk;
     BOOL talk;
@@ -246,6 +285,9 @@ static UIProgressView *Bar() { UIProgressView *p = [UIProgressView new]; return 
     [f add:Btn(@"Copy log", self, @selector(onCopyLog))];
     lbLog = [UILabel new]; lbLog.numberOfLines = 0; lbLog.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular]; lbLog.text = @"Idle";
     [f add:lbLog];
+    [f add:Lbl(@"Library log (newest at the bottom)")];
+    lbLib = [UILabel new]; lbLib.numberOfLines = 0; lbLib.font = [UIFont monospacedSystemFontOfSize:10 weight:UIFontWeightRegular]; lbLib.text = @"";
+    [f add:lbLib];
 }
 
 // ---- helpers
@@ -298,7 +340,7 @@ static NSString *N(const std::string &s) { return [NSString stringWithUTF8String
 - (void)onMusicVol { if (running) session->SetMusicVolume((int)slMusic.value); }
 - (void)onMonitor { if (running) session->SetMonitor(swMonitor.on); }
 - (void)onMonVol { if (running) session->SetMonitorVolume((int)slMon.value); }
-- (void)onCopyLog { UIPasteboard.generalPasteboard.string = lbLog.text; }
+- (void)onCopyLog { UIPasteboard.generalPasteboard.string = [NSString stringWithFormat:@"%@\n\n-- library log --\n%@", lbLog.text, LibLogText()]; }
 
 - (void)onStart {
     if (running) return;
@@ -336,7 +378,8 @@ static NSString *N(const std::string &s) { return [NSString stringWithUTF8String
     [self refreshDevices]; [self showDeviceCounts];
 }
 - (void)onTick {
-    if (!running) return;
+    if (tick % 10 == 0) lbLib.text = LibLogText();
+    if (!running) { ++tick; return; }
     barMine.progress = session->MicLevel() / 100.0f;
     barRx.progress = session->SpkLevel() / 100.0f;
     if (++tick % 10 == 0) {
@@ -374,5 +417,5 @@ static NSString *N(const std::string &s) { return [NSString stringWithUTF8String
 @end
 
 int main(int argc, char *argv[]) {
-    @autoreleasepool { return UIApplicationMain(argc, argv, nil, NSStringFromClass(AppDelegate.class)); }
+    @autoreleasepool { StartLogCapture(); return UIApplicationMain(argc, argv, nil, NSStringFromClass(AppDelegate.class)); }
 }

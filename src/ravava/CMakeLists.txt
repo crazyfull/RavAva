@@ -213,6 +213,11 @@ if(ANDROID)
     list(APPEND RAVAVA_PLATFORM_HEADERS platform/AndroidAudioRoute.h)
 endif()
 
+if(IOS)
+    list(APPEND RAVAVA_SOURCES platform/IosAudioSession.cpp)
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/platform/IosAudioSession.cpp" PROPERTIES COMPILE_OPTIONS "-x;objective-c++")
+endif()
+
 if(IOS AND RAVAVA_BUILD_SHARED)
     message(FATAL_ERROR "RavAva on iOS is a static library (RAVAVA_BUILD_SHARED=OFF); link it into your app")
 endif()
