@@ -1,10 +1,8 @@
 # Builds the pure-native (no Qt) Android demo of RavAva.
 #
-# Place the demo folder as:
-#   crazyfull/RavAva/android4-demo/
-#
-# IMPORTANT: Copy this workflow to the REPO ROOT:
-#   .github/workflows/build-native-android.yml
+# Demo folder: build-demo/android-native/
+# The library (RavAva + Opus + webrtc in one libRavAva.a per ABI, plus headers) comes from build-static-library-android.yml;
+# this workflow only compiles the app against that artifact.
 #
 # Trigger: Actions → "Build Native Android Demo" → Run workflow
 
@@ -20,8 +18,28 @@ on:
         default: all
 
 jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      abis: ${{ steps.abis.outputs.abis }}
+    steps:
+      - id: abis
+        run: |
+          if [ "${{ github.event.inputs.abi }}" = "all" ] || [ -z "${{ github.event.inputs.abi }}" ]; then
+            echo 'abis=["arm64-v8a","armeabi-v7a"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'abis=["${{ github.event.inputs.abi }}"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  library:
+    needs: prep
+    uses: ./.github/workflows/build-static-library-android.yml
+    with:
+      abis: ${{ needs.prep.outputs.abis }}
+
   build:
     name: Build ${{ matrix.abi }}
+    needs: library
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -108,46 +126,18 @@ jobs:
           echo "ANDROID_NDK_HOME=$SDK/ndk/26.1.10909125" >> $GITHUB_ENV
           echo "ANDROID_NDK=$SDK/ndk/26.1.10909125" >> $GITHUB_ENV
 
-      # ---------------------------------------------------------------- webrtc-audio-processing (static, optional: echo / noise / AGC / high-pass)
-      - name: Cache webrtc-audio-processing
+      - name: Download the Android library (RavAva + Opus + webrtc)
         if: steps.skip.outputs.run == 'true'
-        id: webrtc_cache
-        uses: actions/cache@v4
+        uses: actions/download-artifact@v4
         with:
-          path: webrtc-install
-          key: webrtc-1.3-native-android-${{ matrix.abi }}-api21-ndk26.1.10909125-${{ hashFiles('libs/webrtc/build_android.sh') }}
+          name: RavAva-Android-static
+          path: RavAva-Android
 
-      - name: Build webrtc-audio-processing (static, ${{ matrix.abi }})
-        if: steps.skip.outputs.run == 'true' && steps.webrtc_cache.outputs.cache-hit != 'true'
-        continue-on-error: true            # no echo cancellation is better than no APK
-        env:
-          ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/26.1.10909125
-          ANDROID_API: "21"
-        run: |
-          pip install meson ninja
-          WFILE="webrtc-audio-processing-1.3.tar.xz"
-          mkdir -p webrtc-src
-          if ! curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 300 \
-                -o webrtc.tar.xz "https://freedesktop.org/software/pulseaudio/webrtc-audio-processing/${WFILE}"; then
-            echo "Primary server failed. Trying GitLab..."
-            curl -fL --retry 5 --retry-all-errors --retry-delay 3 --connect-timeout 20 --max-time 300 \
-                -o webrtc.tar.xz "https://gitlab.freedesktop.org/pulseaudio/webrtc-audio-processing/-/archive/v1.3/webrtc-audio-processing-v1.3.tar.gz"
-          fi
-          tar xf webrtc.tar.xz -C webrtc-src --strip-components=1
-          libs/webrtc/build_android.sh webrtc-src ${{ matrix.abi }} webrtc-install
-
-      - name: Is webrtc available?
+      - name: Check the library
         if: steps.skip.outputs.run == 'true'
-        id: webrtc
         run: |
-          if [ -f webrtc-install/lib/libwebrtc_apm.a ]; then
-            echo "root=$GITHUB_WORKSPACE/webrtc-install" >> "$GITHUB_OUTPUT"
-            echo "status=ON" >> "$GITHUB_OUTPUT"
-          else
-            echo "root=" >> "$GITHUB_OUTPUT"
-            echo "status=OFF" >> "$GITHUB_OUTPUT"
-            echo "::warning::webrtc-audio-processing was not built for ${{ matrix.abi }}: the APK has no echo cancellation"
-          fi
+          cat RavAva-Android/lib/${{ matrix.abi }}/BUILD-INFO.txt
+          ls -l RavAva-Android/lib/${{ matrix.abi }}/libRavAva.a
 
       - name: Ensure Gradle Wrapper exists
         if: steps.skip.outputs.run == 'true'
@@ -195,7 +185,7 @@ jobs:
         run: |
           ./gradlew assembleDebug \
             -PravavaAbi=${{ matrix.abi }} \
-            ${{ steps.webrtc.outputs.root != '' && format('-PwebrtcRoot={0}', steps.webrtc.outputs.root) || '' }} \
+            -PravavaPrebuilt=$GITHUB_WORKSPACE/RavAva-Android \
             --stacktrace 2>&1 | tee build.log
 
           APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
@@ -241,4 +231,4 @@ jobs:
         run: |
           echo "### Native Demo – ${{ matrix.abi }}" >> $GITHUB_STEP_SUMMARY
           echo "- Artifact: \`RavAva-NativeDemo-${{ matrix.abi }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- minSdk 21 · WebRTC OFF · Loopback + UDP" >> $GITHUB_STEP_SUMMARY
+          echo "- minSdk 21 · libRavAva prebuilt (see lib/${{ matrix.abi }}/BUILD-INFO.txt) · Loopback + UDP" >> $GITHUB_STEP_SUMMARY

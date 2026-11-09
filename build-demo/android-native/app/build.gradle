@@ -21,6 +21,9 @@ android {
                 def cmakeArgs = ["-DANDROID_STL=c++_shared"]
                 if (project.hasProperty('webrtcRoot'))
                     cmakeArgs << "-DWEBRTC_ROOT=${project.property('webrtcRoot')}".toString()
+                // -PravavaPrebuilt=<unpacked RavAva-Android-static>: link the prebuilt libRavAva.a (Opus + webrtc inside) instead of building it
+                if (project.hasProperty('ravavaPrebuilt'))
+                    cmakeArgs << "-DRAVAVA_PREBUILT=${project.property('ravavaPrebuilt')}".toString()
                 arguments(*cmakeArgs)
             }
         }
