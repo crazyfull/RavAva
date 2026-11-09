@@ -75,6 +75,10 @@ bool OpusCodec::InitEncoder(const AudioConfig &cfg)
         return false;
     }
 
+    // a datagram bigger than a typical path MTU is fragmented by IP and then lost as a whole: warn early (VBR peaks can be ~1.5x the mean)
+    if(cfg.Bitrate / 8 * cfg.frameMs / 1000 * 3 / 2 > 1200)
+        RAVAVA_WARN("Bitrate %d bps x frameMs %d can produce datagrams over ~1200 bytes: they may be fragmented or dropped by the network path", cfg.Bitrate, cfg.frameMs);
+
     int err = OPUS_OK;
     OpusEncoder *enc = opus_encoder_create(cfg.inputRate, cfg.channels, cfg.musicMode ? OPUS_APPLICATION_AUDIO : OPUS_APPLICATION_VOIP, &err);
     if(err != OPUS_OK || !enc){

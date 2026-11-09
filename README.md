@@ -5,11 +5,11 @@
 **Real-time voice for any datagram transport — Opus, adaptive jitter buffer, FEC / PLC / DRED, echo cancellation and
 phone-call-aware device handling in one small C++ library.**
 
-`libRavAva` · Windows · Linux · macOS · Android · iOS · no Qt · no sockets · no threads for you to manage
+`libRavAva` · Windows · Linux · macOS · Android · iOS · no Qt in the library · no sockets · you manage no threads (it runs its own audio and watchdog threads)
 
 **Author:** Mojtaba Kahvand, 2026 · **License:** Proprietary — see [License](#17-license)
 
-> **For AI assistants and programmers reading this file**
+> **Reading guide**
 > This README is the complete usage contract of the library. Read [Safety Rules](#7-safety-rules) **before writing any code**
 > that uses it, and use the [Integration recipes](#6-quick-start--integration-recipes) as the starting point.
 > Exact signatures and per-method notes are in the header comments of `src/ravava/*.h`; internals and design notes are in
@@ -141,7 +141,7 @@ transport it would force on you.
 - Microphone gain (0–200 %), received volume (0–100 %, click-free, never amplifies), smooth and peak **level meters**.
 
 ### Real-time safety
-- The audio thread never locks against the network thread, never allocates and never waits (see [Safety rules](#7-safety-rules)).
+- On the hot paths (capture → encode → handler, queue → jitter buffer → decode → speaker) the audio thread takes no lock shared with your threads, does not allocate in steady state and never waits (see [Safety rules](#7-safety-rules)). Setup, reconfiguration, device changes and the first packets of a new stream may allocate.
 - Lock-free packet queue between your thread and the audio thread.
 - Verified by dedicated tests: `noalloc_test` (0 allocations in steady state), `callback_time_test` (callback time),
   ThreadSanitizer in CI.
@@ -155,22 +155,28 @@ transport it would force on you.
 
 ## 4. Measured behaviour
 
-Numbers below come from the repository's own **network simulator** (`tests/net_sim_test.cpp`): a steady-tone signal,
-20 ms frames, 16 kbit/s Opus with in-band FEC, legacy jitter buffer (no arrival timestamps), several seeds averaged.
-*Bad %* is the share of played frames that were neither real audio nor FEC-recovered (concealed, silent or skipped).
-Delay is the playout delay in the simulator. It is a simulation: treat it as a regression benchmark and an indication,
-not as a promise for a particular network.
+Numbers below come from the repository's own **network simulator** (`tests/net_sim_test.cpp`, command `./net_sim_test compare`):
+a steady-tone signal, 20 ms frames, 16 kbit/s Opus with in-band FEC, on a virtual clock. Each cell is **legacy → adaptive**
+(legacy = reactive buffer without arrival timestamps; adaptive = the buffer used after `SetAdaptivePlayout(true)`; it is the default). *Bad %* is the share of played frames that were neither real audio nor FEC-recovered.
+*Delay* is the average playout delay of the buffer in the simulator (it does not include the capture/playback device latency).
+It is a simulation: a regression benchmark and an indication, not a promise for a particular network. Adaptive trades a little more
+concealment for much lower delay, so Bad % is about the same while delay drops.
 
-| Scenario | Delay avg / p95 (ms) | Bad % | What the buffer did |
-|---|---|---|---|
-| clean network | 80 / 80 | 0.00 | — |
-| 5 % random loss | 87 / 88 | 0.29 | 287 frames rebuilt by FEC, 17 by PLC |
-| **20 % random loss** | 95 / 100 | 4.24 | 953 FEC, 254 PLC |
-| burst loss of 5 packets | 79 / 80 | 1.43 | FEC + PLC, no delay growth |
-| burst loss of 10 packets | 95 / 100 | 3.19 | buffer deepens for the burst |
-| jitter 30 ms | 92 / 104 | 0.00 | — |
-| 3G-like jitter (25 ms) + stalls | 161 / 184 | 0.25 | deeper buffer, FEC 241 |
-| sudden +150 ms latency step | 40 / 80 | 0.17 | recovers within the run |
+| Scenario | Delay avg ms | Bad % |
+|---|---|---|
+| clean network | 80 → 40 | 0.00 → 0.03 |
+| 5 % random loss | 87 → 35 | 0.29 → 0.34 |
+| **20 % random loss** | 95 → 28 | 4.24 → 4.31 |
+| burst loss of 5 packets | 79 → 31 | 1.43 → 1.48 |
+| burst loss of 10 packets | 95 → 2 | 3.19 → 3.51 |
+| jitter 30 ms | 92 → 88 | 0.00 → 0.02 |
+| jitter 60 ms | 87 → 134 | 0.03 → 0.04 |
+| 3G-like jitter (25 ms) + stalls | 161 → 145 | 0.25 → 0.58 |
+| sudden +150 ms latency step (20 s run) | 40 → 62 | 0.17 → 0.33 |
+| speaker clock drift +300 ppm | 18 → 4 | 0.74 → 0.03 |
+
+The "+150 ms step" row is an average over a 20 s run that contains the step, so it is not the delay after the step. A very low delay (2 ms in the burst rows) means the buffer keeps almost nothing and relies on FEC/PLC; if you
+prefer safety over delay use `SetJitterLimitsMs` to set a minimum depth.
 
 Callback cost (`callback_time_test`, 1510 callbacks): longest 400 µs with adaptive playout against the 10 ms deadline;
 zero callbacks over 5 ms.
@@ -232,7 +238,7 @@ cfg.inputRate = cfg.outputRate = 48000;
 cfg.channels = 1;
 cfg.Bitrate = 32000;                   // bit/s
 cfg.frameMs = 20;
-cfg.maxBandwidth = 1105;               // fullband
+cfg.maxBandwidth = Bandwidth::Fullband;   // = 1105
 
 std::string err;
 if (!cfg.Validate(&err)) { /* show err */ return; }
@@ -357,8 +363,9 @@ Follow these exactly. Breaking any of them causes crashes or audio glitches.
 6. Share **one** `AudioProcessor` (`shared_ptr`) between the recorder and the player of the same session.
 
 ### Threads
-7. The packet handler runs on the **audio thread**: no blocking, no I/O, no locks shared with other threads, no large allocations,
-   no calls back into `Recorder`.
+7. The packet handler runs on the **audio thread**: no blocking, no locks shared with other threads, no large allocations,
+   no calls back into `Recorder`. A **non-blocking** `sendto()` on a UDP socket is the only I/O that is fine there; if it can ever
+   block or fail slowly, copy the datagram into your own lock-free queue and send from your own thread.
 8. `Player::Play()` / `ConferencePlayer::Play()` are thread-safe (they only enqueue); `PacketRouter` is **not** thread safe
    (one thread, or your own lock).
 9. Lock-free from any thread: `SetVolume`, `SetInputGain`, `GetLevel`, `TakePeakLevel`, `GetVolume`.
@@ -492,7 +499,7 @@ meant for a 1 Hz timer: loss = `stats.lost`, recovered = `stats.fec + stats.plc 
 | `expectedLossPerc` | 20 | tells the encoder how much redundancy to spend (0–100) |
 | `dredMs` | 0 | Opus 1.5+ Deep REDundancy: ms of past audio in every packet (needs libopus with DRED and `RAVAVA_ENABLE_DRED`; from ≈ 32 kbit/s) |
 | `musicMode` | false | Opus tuned for music instead of speech (keeps treble, full bandwidth at low rates) |
-| `useEchoCancel` | true | echo canceller (needs the webrtc build and an `AudioProcessor` you create) |
+| `useEchoCancel` | true | **hint only** — the library never reads it; AEC runs only if you create an `AudioProcessor` (webrtc build) and attach it with `SetAudioProcessor` |
 | `aecNearendProtection` | 0 | 0–3: higher = own voice cut less during double talk |
 | `aecDelayMs` | 100 | start hint for the echo delay (webrtc refines it) |
 | `noiseSuppression` | 0 | 0 off · 1 low · 2 moderate · 3 high · 4 very high |
@@ -666,6 +673,13 @@ of the demo app. To use the library: drag the xcframework into Xcode, add `-ObjC
 - 16-bit PCM inside the device path (the float / 24-bit `OpusCodec` calls are for your own capture / sink).
 - Echo cancellation needs the optional webrtc build; on iOS and Android it is available when the app links the webrtc library built for that platform.
 - A permanent audio-focus loss on Android (another app took focus for good) produces no "gain" event later; the app must restart.
+- Only the Opus rates 8/12/16/24/48 kHz are accepted (44.1 kHz devices are resampled by the device layer); the datagram must fit your
+  path MTU: keep `Bitrate × frameMs / 8` plus the 3-byte envelope below ~1200 bytes (the library warns when it does not).
+- **Security:** `streamId` is 16 bit and chosen by the sender; random ids collide with probability ≈ 0.75 % among 32 talkers
+  (birthday bound) — let your server assign ids when it matters. Nothing is authenticated: a forged datagram can inject audio.
+- **iOS:** the library activates and re-activates the app-wide `AVAudioSession` itself. If your app configures the session (category,
+  mode, route) do it **before** the first `Start()` and do not deactivate it while a recorder or player is running.
+- AEC is available only with the webrtc build; it is not built for 32-bit Android (armeabi-v7a, x86).
 - Proprietary license: not open source (see below).
 
 ---
@@ -691,7 +705,7 @@ of the demo app. To use the library: drag the xcframework into Xcode, add `-ObjC
 
 **Naming standard** — namespace `ravava`; classes and files `PascalCase`; public methods `PascalCase` (`SetVolume`);
 private methods and locals `camelCase`; members `m_camelCase`; macros `RAVAVA_UPPER_SNAKE`; header guards `RAVAVA_<FILE>_H`;
-booleans start with `Is` / `Has`. Full details: `src/ravava/README.md`.
+booleans of the C++ API methods start with `Is` / `Has`. `AudioConfig` is a plain settings struct and keeps its historical field names (`Bitrate`, `useEchoCancel`, …); they are stable API, not a style example. Full details: `src/ravava/README.md`.
 
 ---
 
@@ -703,6 +717,6 @@ RavAva is **not free software** and **not open source**.
 Nobody may use, copy, modify, distribute, or train models on it without a written license from the author.
 Seeing this repository does **not** grant any rights.
 
-Third-party components (miniaudio, Opus, webrtc-audio-processing) keep their own licenses.
+Third-party components (miniaudio, Opus, webrtc-audio-processing) keep their own licenses — see `THIRD_PARTY_NOTICES.md`.
 
 **Full license text:** `LICENSE` · **Contact:** mojtaba.kahvand@gmail.com

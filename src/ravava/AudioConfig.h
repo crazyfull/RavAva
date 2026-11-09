@@ -23,6 +23,10 @@ SWB (super-wideband)        12 kHz  24 kHz
 FB (fullband)               20 kHz  48 kHz
 */
 
+namespace Bandwidth {   // values of the Opus OPUS_BANDWIDTH_* constants, usable without opus.h
+constexpr int Narrowband = 1101, Mediumband = 1102, Wideband = 1103, SuperWideband = 1104, Fullband = 1105;
+}
+
 struct AudioConfig
 {
     //opus support: 8000 12000 16000 24000 48000 Hz
@@ -48,7 +52,7 @@ struct AudioConfig
     int dredMs = 0;             //Opus 1.5+ Deep REDundancy (needs libopus built with --enable-dred and RAVAVA_ENABLE_DRED): how many ms of the
                                 //PAST audio every packet carries in a neural, very compact form (0 = off, 10 ms steps, max 1000). Recovers
                                 //bursts of lost packets far better than inband FEC, but it only turns on from ~32 kbps and costs bitrate and CPU.
-    int maxBandwidth = 1105;     //OPUS_BANDWIDTH_FULLBAND (1101 NB .. 1105 FB). was 3002 = OPUS_SIGNAL_MUSIC, which Opus rejects as a bandwidth
+    int maxBandwidth = Bandwidth::Fullband;     //OPUS_BANDWIDTH_FULLBAND (1101 NB .. 1105 FB). was 3002 = OPUS_SIGNAL_MUSIC, which Opus rejects as a bandwidth
 
     // ---- microphone taken by someone else (a phone call, another app, an iOS interruption) ----
     bool automaticResumeAfterFreeMic = true;    // the Recorder stops while somebody else has the microphone and tells it (Recorder::SetMicEventHandler).
@@ -63,7 +67,7 @@ struct AudioConfig
                                 //Bluetooth microphone (Bluetooth headphones play as "high quality" media, the phone's microphone is used).
 
     // ---- echo cancellation (webrtc-audio-processing, see AudioProcessor.h) ----
-    bool useEchoCancel = true;  //remove what the speaker plays from the mic signal (needed when speakers + mic are used together)
+    bool useEchoCancel = true;  //HINT ONLY: the library itself never reads it. Echo cancellation runs only when you attach an AudioProcessor; use this flag to decide that in your app
     int aecNearendProtection = 0; //0..3: higher = own voice is cut less during double talk (a bit more echo may pass)
     int noiseSuppression = 0;   //0 = off, 1..4 = low .. very high (webrtc noise suppression on the mic)
     bool autoGain = false;      //webrtc AGC2: automatic mic level + limiter
