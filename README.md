@@ -549,7 +549,7 @@ meant for a 1 Hz timer: loss = `stats.lost`, recovered = `stats.fec + stats.plc 
   both devices re-open by themselves. A missed "interruption ended" expires after 2 minutes.
 - Call it from Objective-C++ (`.mm`) or Swift through an Objective-C++ bridge; the library is C++.
 - Echo cancellation is available when the app is linked with the webrtc build (`libs/webrtc/build_ios.sh`, used by the demo workflow).
-- Details and the xcframework: `example/IOS.md`.
+- Details and the prebuilt library layout: `example/IOS.md`.
 
 ---
 
@@ -616,8 +616,9 @@ A complete, working integration is `android5-native-demo/` (Gradle + CMake build
 
 Per SDK (`iphoneos`, `iphonesimulator`) build Opus and the library with CMake (`-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=...`),
 merge with `libtool -static` into one archive, and link it into your app with `AVFoundation`, `AudioToolbox`, `CoreAudio`,
-`CoreFoundation`, `Foundation`. `.github/workflows/build-ios.yml` produces `RavAva.xcframework`;
-`.github/workflows/build-demo-ios.yml` produces an unsigned `.ipa` of the demo app (no Mac needed).
+`CoreFoundation`, `Foundation`. You do not need a Mac for that: `.github/workflows/build-static-library-ios.yml` builds
+**one** `libRavAva.a` (device arm64: RavAva + Opus + webrtc) together with all headers (artifact `RavAva-iOS-static`);
+`.github/workflows/build-demo-ios.yml` uses exactly that artifact to produce an unsigned `.ipa` of the demo app.
 
 ---
 
@@ -640,7 +641,7 @@ merge with `libtool -static` into one archive, and link it into your app with `A
   volume and gain, **microphone events**, music and monitor, **zero allocations on the audio thread**, callback time, stress / fuzz, and
   echo-canceller tests when webrtc is present. Run: `cmake -S src/ravava -B build -DRAVAVA_BUILD_TESTS=ON && cmake --build build && cd build && ctest`.
 - **CI** (GitHub Actions): Linux package + consumer build; **ThreadSanitizer** run of the real-time tests; macOS CLI (arm64 + Intel);
-  iOS xcframework and unsigned demo `.ipa`; Android native demo APKs (per ABI); Qt demo builds for Windows, Linux, macOS and Android.
+  iOS static library (Opus + webrtc inside) and the unsigned demo `.ipa`; Android native demo APKs (per ABI); Qt demo builds for Windows, Linux, macOS and Android.
 - Audio on real hardware (devices, Bluetooth, calls) cannot run in CI: it is tested on real phones and PCs by hand.
 
 ---
