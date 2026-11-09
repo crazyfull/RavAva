@@ -210,7 +210,7 @@ Reproduce: `cmake -S src/ravava -B build -DRAVAVA_BUILD_TESTS=ON && cmake --buil
 | PCM format inside the devices | 16-bit signed (float / 24-bit available through `OpusCodec` directly) |
 | Datagram size | one Opus packet + 3-byte audio header (+ 3-byte optional envelope); keep under ≈ 1200 bytes |
 | Talkers per speaker | up to 32 (`ConferencePlayer`) |
-| Android | NDK 26 (CI), library from API 21 (OpenSL ES); webrtc on 32-bit ARM needs API 24; permissions `RECORD_AUDIO`, `BLUETOOTH_CONNECT` (Android 12+) |
+| Android | NDK 26 (CI), library from API 21 (OpenSL ES); webrtc on 32-bit ABIs needs API 24 (so the prebuilt armeabi-v7a / x86 libraries are without it); permissions `RECORD_AUDIO`, `BLUETOOTH_CONNECT` (Android 12+) |
 | iOS | library built for iOS 13+, demo app for iOS 14+; `NSMicrophoneUsageDescription` required; no Bitcode |
 | Windows toolchain for webrtc | MSVC 2019 x64 / x86, `libs/webrtc/build_win.bat` |
 
@@ -539,7 +539,7 @@ meant for a 1 Hz timer: loss = `stats.lost`, recovered = `stats.fec + stats.plc 
 - Recovery: no re-opening while the phone rings; route restored after another app's call; stalled streams detected and re-opened;
   a vanished Bluetooth device → system default.
 - OpenSL ES (API < 26) has no device ids: routes are set through `AudioManager`; below API 23 lists come from the audio route API.
-- 32-bit ARM: webrtc runs the plain C path (no NEON) and needs API 24; the library without webrtc works from API 21.
+- 32-bit ABIs (armeabi-v7a, x86): webrtc needs API 24 (and runs the plain C path on ARM, no NEON), so the prebuilt libraries for them are built without it and work from API 21; echo cancellation is available on arm64-v8a and x86_64.
 
 ### iOS
 - One audio session for the whole app: the library sets **play-and-record**, speaker (not the earpiece), Bluetooth headsets allowed.
