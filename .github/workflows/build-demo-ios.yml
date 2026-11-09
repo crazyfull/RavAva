@@ -1,7 +1,7 @@
-# Builds the RavAva iPhone demo (ios-demo/) as an UNSIGNED .ipa on a macOS runner (no Mac needed by the developer).
+# Builds the RavAva iPhone demo (build-demo/ios/) as an UNSIGNED .ipa on a macOS runner (no Mac needed by the developer).
 # The library itself (RavAva.xcframework: device + simulator, Opus + webrtc inside, with headers) comes from build-static-library-ios.yml;
 # this workflow only compiles the app against that artifact.
-# The .ipa is signed later on the PC with Sideloadly / AltStore using a free Apple ID (see ios-demo/README.md).
+# The .ipa is signed later on the PC with Sideloadly / AltStore using a free Apple ID (see build-demo/ios/README.md).
 name: Build Demo iOS
 
 on:
@@ -32,12 +32,12 @@ jobs:
       - name: Generate the Xcode project
         run: |
           brew install xcodegen
-          cd ios-demo && xcodegen generate
+          cd build-demo/ios && xcodegen generate
 
       - name: Build the app (unsigned)
         run: |
           set -euxo pipefail
-          cd ios-demo
+          cd build-demo/ios
           xcodebuild -project RavAvaDemo.xcodeproj -scheme RavAvaDemo -configuration Release -sdk iphoneos \
             -destination 'generic/platform=iOS' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
@@ -48,7 +48,7 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p Payload
-          cp -R ios-demo/build/Build/Products/Release-iphoneos/RavAva.app Payload/
+          cp -R build-demo/ios/build/Build/Products/Release-iphoneos/RavAva.app Payload/
           plutil -p Payload/RavAva.app/Info.plist | head -20
           lipo -info Payload/RavAva.app/RavAva
           zip -qr RavAva-iOS-unsigned.ipa Payload

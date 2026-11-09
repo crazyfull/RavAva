@@ -5,16 +5,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ---------------------------------------------------------------------------
-# Paths: android5-native-demo/app/src/main/cpp → 5 levels up = repo root
+# Paths: build-demo/android-native/app/src/main/cpp → 6 levels up = repo root
 # ---------------------------------------------------------------------------
-set(RAVAVA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../..")
+set(RAVAVA_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../..")
 set(RAVAVA_SRC  "${RAVAVA_ROOT}/src/ravava")
 set(MINIAUDIO   "${RAVAVA_ROOT}/miniaudio")
 
 if(NOT EXISTS "${RAVAVA_SRC}/Recorder.h")
     message(FATAL_ERROR
         "Cannot find RavAva sources at ${RAVAVA_SRC}\n"
-        "Expected layout: RavAva/android5-native-demo/app/src/main/cpp/")
+        "Expected layout: RavAva/build-demo/android-native/app/src/main/cpp/")
 endif()
 
 message(STATUS "RAVAVA_ROOT = ${RAVAVA_ROOT}")

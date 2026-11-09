@@ -269,7 +269,7 @@ if (AudioProcessor::IsAvailable() && aec->Init(cfg.inputRate, cfg.RenderRate(), 
 
 ### 6.3 A real call over UDP, several talkers, microphone events
 
-This is the structure of the demo apps (`mainwindow.cpp`, `android5-native-demo/.../VoiceSession.cpp`):
+This is the structure of the demo apps (`mainwindow.cpp`, `build-demo/android-native/.../VoiceSession.cpp`):
 
 ```cpp
 #include <ravava/Recorder.h>
@@ -335,7 +335,7 @@ play.SetOutputDevice(id);
 Re-list devices every time you show a menu and after `SetDeviceLostHandler` fires — ids are opaque; never build them yourself.
 
 **Working examples:** `example/loopback/main.cpp` (command line), `mainwindow.cpp` (Qt app, `initAudio`,
-`onReadEncodedBuffer`, `onReceiveUDPData`), `android5-native-demo/` (Java UI + JNI), `ios-demo/` (UIKit).
+`onReadEncodedBuffer`, `onReceiveUDPData`), `build-demo/android-native/` (Java UI + JNI), `build-demo/ios/` (UIKit).
 
 ---
 
@@ -610,7 +610,7 @@ cmake -S src/ravava -B build-android \
   -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 \
   -DRAVAVA_OPUS_ROOT=<opus-prefix>
 ```
-A complete, working integration is `android5-native-demo/` (Gradle + CMake builds the library sources directly, one ABI per job).
+A complete, working integration is `build-demo/android-native/` (Gradle + CMake builds the library sources directly, one ABI per job).
 
 ### 12.6 iOS
 
@@ -628,9 +628,9 @@ of the demo app. To use the library: drag the xcframework into Xcode, add `-ObjC
 
 | Demo | Where | What it shows |
 |---|---|---|
-| **Qt voice-chat app** | `mainwindow.*`, `main.cpp`, `RavAva-Demo.pro`, `build-demo/` | UDP voice chat with every library setting; Windows, Linux, macOS, Android (Qt 6) |
-| **Native Android demo** | `android5-native-demo/` | Java UI + JNI, Android 5+, same window as the Qt demo, WebRTC processing on arm64 |
-| **iPhone demo** | `ios-demo/` | UIKit app (no Mac needed to build: GitHub Actions makes an unsigned `.ipa` for Sideloadly / AltStore) |
+| **Qt voice-chat app** | `mainwindow.*`, `main.cpp`, `RavAva-Demo.pro`, `build-demo/{windows,linux,macos,android}/` | UDP voice chat with every library setting; Windows, Linux, macOS, Android (Qt 6) |
+| **Native Android demo** | `build-demo/android-native/` | Java UI + JNI, Android 5+, same window as the Qt demo, WebRTC processing on arm64 |
+| **iPhone demo** | `build-demo/ios/` | UIKit app (no Mac needed to build: GitHub Actions makes an unsigned `.ipa` for Sideloadly / AltStore) |
 | **loopback CLI** | `example/loopback/` | mic → Opus → simulated lossy network → speaker; `--list`, `-b`, `-f`, `--loss`, `--reorder`, `--echo`, `--ns`, `--agc`, `--hpf`, `--music` |
 | **consumer** | `ci/consumer/` | minimal project using the *installed* library |
 
@@ -676,9 +676,9 @@ of the demo app. To use the library: drag the xcframework into Xcode, add `-ObjC
 | `example/` | loopback CLI, iOS notes, testing notes |
 | `tests/` | unit, simulation, stress and microphone-event tests (no sound card) |
 | `ci/` | installed-package consumer, iOS link check |
-| `mainwindow.*`, `main.cpp`, `RavAva-Demo.pro`, `android/`, `build-demo/` | Qt demo app |
-| `android5-native-demo/` | native Android demo (Java + JNI) |
-| `ios-demo/` | iPhone demo (UIKit, Objective-C++) |
+| `mainwindow.*`, `main.cpp`, `RavAva-Demo.pro`, `android/` | Qt demo app (per-platform build files: `build-demo/windows`, `linux`, `macos`, `android`) |
+| `build-demo/android-native/` | native Android demo (Java + JNI) |
+| `build-demo/ios/` | iPhone demo (UIKit, Objective-C++) |
 | `.github/workflows/` | CI and release workflows |
 
 **Naming standard** — namespace `ravava`; classes and files `PascalCase`; public methods `PascalCase` (`SetVolume`);

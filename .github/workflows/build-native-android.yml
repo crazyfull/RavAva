@@ -35,14 +35,12 @@ jobs:
       - name: Detect demo folder
         id: demo
         run: |
-          if [ -d android4-demo ]; then
-            echo "dir=android4-demo" >> $GITHUB_OUTPUT
-          elif [ -d android5-native-demo ]; then
-            echo "dir=android5-native-demo" >> $GITHUB_OUTPUT
+          if [ -d build-demo/android-native ]; then
+            echo "dir=build-demo/android-native" >> $GITHUB_OUTPUT
           else
-            echo "Neither android4-demo nor android5-native-demo found in repo root."
-            echo "Contents of repo root:"
-            ls -la
+            echo "build-demo/android-native not found."
+            echo "Contents of build-demo:"
+            ls -la build-demo
             exit 1
           fi
           echo "Using demo folder: $(grep dir= $GITHUB_OUTPUT)"

@@ -47,7 +47,7 @@ You do **not** need to install Opus, webrtc, meson, CMake, or anything else. Eve
    ```
 
    From Swift, call a small Objective-C class you write in that `.mm` file (add its header to the bridging header). The demo
-   (`ios-demo/Sources/main.mm`) is a complete working example: audio engine, UDP, settings, devices, music, microphone events.
+   (`build-demo/ios/Sources/main.mm`) is a complete working example: audio engine, UDP, settings, devices, music, microphone events.
 6. Ask for the microphone permission **before** `Recorder::Start()`:
 
    ```objc
@@ -96,7 +96,7 @@ The whole API, the safety rules and the recipes are in the main `README.md` (sec
 
 ## What was tested
 - CI: the library builds for device and simulator and a small program links against each slice.
-- The iPhone demo (`ios-demo/`, built by `.github/workflows/build-demo-ios.yml` from this very xcframework) runs on an iPhone.
+- The iPhone demo (`build-demo/ios/`, built by `.github/workflows/build-demo-ios.yml` from this very xcframework) runs on an iPhone.
 - Not available: Intel-Mac simulator (x86_64), bitcode (removed by Apple), macOS Catalyst, tvOS / watchOS.
 
 ## If the build fails
