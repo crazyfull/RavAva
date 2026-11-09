@@ -1,9 +1,10 @@
-# Builds libRavAva for iOS (device, arm64) as ONE static library: RavAva + Opus + webrtc-audio-processing (echo cancellation,
-# noise suppression, AGC) merged into lib/libRavAva.a, with every header an app needs next to it (include/).
+# Builds libRavAva for iOS as RavAva.xcframework: device (arm64) + iPhone Simulator (arm64, Apple-silicon Macs).
+# Each slice is ONE static library with everything inside: RavAva + Opus + webrtc-audio-processing (echo cancellation, noise
+# suppression, AGC), and the slice carries every header an app needs. Xcode picks the right slice by itself.
 # Used by hand (Run workflow -> artifact "RavAva-iOS-static") and by build-demo-ios.yml (workflow_call), so there is
 # exactly one place that builds the iOS library.
 # The audio is NOT run here (a CI machine has no iPhone): this proves "it builds and links".
-# If the webrtc build fails the library is still built, without echo cancellation (a warning says so).
+# If the webrtc build of a slice fails that slice is still built, without echo cancellation (a warning says so).
 name: Build static library iOS
 
 on:
@@ -11,8 +12,13 @@ on:
   workflow_call:
 
 jobs:
-  ios-static-library:
+  slice:
+    name: slice ${{ matrix.sdk }}
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [iphoneos, iphonesimulator]
     env:
       OPUS_VERSION: "1.5.2"
       IOS_MIN: "13.0"
@@ -33,9 +39,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: webrtc-install
-          key: webrtc-1.3-ios-arm64-${{ env.IOS_MIN }}-${{ hashFiles('libs/webrtc/build_ios.sh') }}
+          key: webrtc-1.3-${{ matrix.sdk }}-arm64-${{ env.IOS_MIN }}-${{ hashFiles('libs/webrtc/build_ios.sh') }}
 
-      - name: Build webrtc-audio-processing (iphoneos arm64)
+      - name: Build webrtc-audio-processing (${{ matrix.sdk }} arm64)
         if: steps.webrtc_cache.outputs.cache-hit != 'true'
         continue-on-error: true            # no echo cancellation is better than no library
         run: |
@@ -48,7 +54,7 @@ jobs:
                 -o webrtc.tar.xz "https://gitlab.freedesktop.org/pulseaudio/webrtc-audio-processing/-/archive/v1.3/webrtc-audio-processing-v1.3.tar.gz"
           fi
           tar xf webrtc.tar.xz -C webrtc-src --strip-components=1
-          IOS_MIN=$IOS_MIN libs/webrtc/build_ios.sh webrtc-src iphoneos webrtc-install
+          IOS_MIN=$IOS_MIN libs/webrtc/build_ios.sh webrtc-src ${{ matrix.sdk }} webrtc-install
 
       - name: Is webrtc available?
         id: webrtc
@@ -56,14 +62,14 @@ jobs:
           if [ -f webrtc-install/lib/libwebrtc-audio-processing-1.a ]; then
             echo "root=$GITHUB_WORKSPACE/webrtc-install" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::webrtc-audio-processing was not built for iOS: the library has no echo cancellation"
+            echo "::warning::webrtc-audio-processing was not built for ${{ matrix.sdk }}: this slice has no echo cancellation"
           fi
 
       # ---------------------------------------------------------------- Opus + RavAva, merged into one archive
-      - name: Build Opus + libRavAva (iphoneos arm64)
+      - name: Build Opus + libRavAva (${{ matrix.sdk }} arm64)
         run: |
           set -euxo pipefail
-          sdk=iphoneos
+          sdk=${{ matrix.sdk }}
           FLAGS=(-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=$sdk -DCMAKE_OSX_ARCHITECTURES=arm64
                  -DCMAKE_OSX_DEPLOYMENT_TARGET=$IOS_MIN -DCMAKE_BUILD_TYPE=Release
                  -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY)
@@ -99,10 +105,11 @@ jobs:
           vtool -show-build RavAva-iOS/lib/libRavAva.a | head -12 || true
           ls -l RavAva-iOS/lib; find RavAva-iOS/include -name '*.h' | sort | head -60
 
-      - name: Link smoke test (device SDK)
+      - name: Link smoke test (${{ matrix.sdk }})
         run: |
           set -euxo pipefail
-          xcrun --sdk iphoneos clang++ -std=c++17 -arch arm64 -miphoneos-version-min=$IOS_MIN \
+          if [ "${{ matrix.sdk }}" = iphoneos ]; then VMIN="-miphoneos-version-min=$IOS_MIN"; else VMIN="-mios-simulator-version-min=$IOS_MIN"; fi
+          xcrun --sdk ${{ matrix.sdk }} clang++ -std=c++17 -arch arm64 $VMIN \
               ci/ios_smoke.cpp -I RavAva-iOS/include -I RavAva-iOS/include/ravava \
               RavAva-iOS/lib/libRavAva.a \
               -framework Foundation -framework CoreFoundation -framework AudioToolbox -framework AVFoundation -framework CoreAudio \
@@ -111,6 +118,37 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: RavAva-iOS-static
+          name: slice-${{ matrix.sdk }}
           path: RavAva-iOS
+          retention-days: 3
+
+  xcframework:
+    needs: slice
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: slice-iphoneos
+          path: slice-iphoneos
+      - uses: actions/download-artifact@v4
+        with:
+          name: slice-iphonesimulator
+          path: slice-iphonesimulator
+      - name: Pack RavAva.xcframework
+        run: |
+          set -euxo pipefail
+          mkdir -p RavAva-iOS-static
+          xcodebuild -create-xcframework \
+              -library slice-iphoneos/lib/libRavAva.a        -headers slice-iphoneos/include \
+              -library slice-iphonesimulator/lib/libRavAva.a -headers slice-iphonesimulator/include \
+              -output RavAva-iOS-static/RavAva.xcframework
+          cp example/IOS.md RavAva-iOS-static/README.md
+          find RavAva-iOS-static -maxdepth 3 | sort
+          cat RavAva-iOS-static/RavAva.xcframework/Info.plist | head -40
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RavAva-iOS-static
+          path: RavAva-iOS-static
           retention-days: 30

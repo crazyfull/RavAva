@@ -17,7 +17,7 @@ Not yet released as a number: everything below is in 0.1.0.
   `include/ravava/` with the Opus headers next to them; optional webrtc-audio-processing (echo cancellation, noise
   suppression, AGC); `RAVAVA_OPUS_ROOT` / `RAVAVA_OPUS_INCLUDE_DIR` / `RAVAVA_OPUS_LIB`.
 - Loopback command line example (`example/loopback`), built for macOS (arm64 + Intel) by GitHub Actions.
-- iOS static build (`.github/workflows/build-static-library-ios.yml` -> `RavAva-iOS/lib/libRavAva.a` + `include/`, device arm64 with Opus and webrtc merged in; it replaced the xcframework workflow `build-ios.yml`): miniaudio as Objective-C, one shared
+- iOS static build (`.github/workflows/build-static-library-ios.yml` -> `RavAva.xcframework`: device arm64 + simulator arm64, each slice one `libRavAva.a` with Opus and webrtc merged in, headers included; replaces `build-ios.yml`): miniaudio as Objective-C, one shared
   play-and-record audio session, speaker + Bluetooth. Built and linked in CI, not yet run on an iPhone.
 - `OpusCodec::EncodeFloat` / `DecodeFloat` and 24 / 32 bit sample converters (float / 24-bit PCM straight into Opus).
 - `MusicPlayer` (play, pause, resume, stop, local monitor with its own volume), streamed from a background decoder thread.

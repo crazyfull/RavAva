@@ -190,7 +190,7 @@ Reproduce: `cmake -S src/ravava -B build -DRAVAVA_BUILD_TESTS=ON && cmake --buil
 | Linux (x86_64, aarch64) | PulseAudio / ALSA / JACK | Built and used (demo, CI with ThreadSanitizer) |
 | macOS (arm64 + Intel) | CoreAudio | Built by CI (demo, loopback tool) |
 | Android | AAudio (API 26+) / OpenSL ES (API 21+) | Built and used on real phones: Android 5.0 (armeabi-v7a) → current (arm64-v8a) |
-| iOS (arm64, device + simulator) | CoreAudio / AVAudioSession | Built and linked by CI; the demo app is being tested on iPhones |
+| iOS (arm64 device + arm64 Simulator) | CoreAudio / AVAudioSession | `RavAva.xcframework` built and linked by CI; the demo app runs on iPhones |
 
 ### Specifications
 
@@ -614,11 +614,13 @@ A complete, working integration is `android5-native-demo/` (Gradle + CMake build
 
 ### 12.6 iOS
 
-Per SDK (`iphoneos`, `iphonesimulator`) build Opus and the library with CMake (`-DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=...`),
-merge with `libtool -static` into one archive, and link it into your app with `AVFoundation`, `AudioToolbox`, `CoreAudio`,
-`CoreFoundation`, `Foundation`. You do not need a Mac for that: `.github/workflows/build-static-library-ios.yml` builds
-**one** `libRavAva.a` (device arm64: RavAva + Opus + webrtc) together with all headers (artifact `RavAva-iOS-static`);
-`.github/workflows/build-demo-ios.yml` uses exactly that artifact to produce an unsigned `.ipa` of the demo app.
+You do not need a Mac to get the library: `.github/workflows/build-static-library-ios.yml` builds **`RavAva.xcframework`**
+(device arm64 + iPhone Simulator arm64; each slice is one `libRavAva.a` with RavAva + Opus + webrtc inside, plus all headers;
+artifact `RavAva-iOS-static`). `.github/workflows/build-demo-ios.yml` uses exactly that artifact to produce an unsigned `.ipa`
+of the demo app. To use the library: drag the xcframework into Xcode, add `-ObjC`, the frameworks `AVFoundation`, `AudioToolbox`,
+`CoreAudio`, `CoreFoundation`, `CoreGraphics`, `Foundation`, use C++17, add `NSMicrophoneUsageDescription` and write the code in
+`.mm` files. The complete step-by-step guide, dependencies, Swift Package Manager / CocoaPods files and troubleshooting are in
+`example/IOS.md` (also inside the artifact as `README.md`).
 
 ---
 
@@ -641,7 +643,7 @@ merge with `libtool -static` into one archive, and link it into your app with `A
   volume and gain, **microphone events**, music and monitor, **zero allocations on the audio thread**, callback time, stress / fuzz, and
   echo-canceller tests when webrtc is present. Run: `cmake -S src/ravava -B build -DRAVAVA_BUILD_TESTS=ON && cmake --build build && cd build && ctest`.
 - **CI** (GitHub Actions): Linux package + consumer build; **ThreadSanitizer** run of the real-time tests; macOS CLI (arm64 + Intel);
-  iOS static library (Opus + webrtc inside) and the unsigned demo `.ipa`; Android native demo APKs (per ABI); Qt demo builds for Windows, Linux, macOS and Android.
+  iOS `RavAva.xcframework` (device + simulator, Opus + webrtc inside) and the unsigned demo `.ipa`; Android native demo APKs (per ABI); Qt demo builds for Windows, Linux, macOS and Android.
 - Audio on real hardware (devices, Bluetooth, calls) cannot run in CI: it is tested on real phones and PCs by hand.
 
 ---
