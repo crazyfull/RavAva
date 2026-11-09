@@ -6,14 +6,7 @@ name: Build Demo iOS
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'ios-demo/**'
-      - 'android5-native-demo/app/src/main/cpp/VoiceSession.*'
-      - 'libs/webrtc/build_ios.sh'
-      - 'src/ravava/**'
-      - '.github/workflows/build-demo-ios.yml'
-      - '.github/workflows/build-static-library-ios.yml'
+
 
 jobs:
   library:
