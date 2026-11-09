@@ -8,16 +8,16 @@ artifact **`RavAva-Android-static`**, a zip with the folders below and this file
       include/                         every header an app needs (ravava/*.h, opus.h & co)
       lib/arm64-v8a/libRavAva.a        64-bit ARM phones (almost all today)            with webrtc
       lib/x86_64/libRavAva.a           emulator / Chromebook (x86_64)                  with webrtc
-      lib/x86/libRavAva.a              old 32-bit emulator                             with webrtc
+      lib/x86/libRavAva.a              old 32-bit emulator                             WITHOUT webrtc
       lib/armeabi-v7a/libRavAva.a      old 32-bit ARM phones (Android 5, Galaxy S4)    WITHOUT webrtc
       lib/<abi>/BUILD-INFO.txt         what is inside that file (webrtc yes/no, minSdk, NDK, STL)
 
 Every `libRavAva.a` is **one** static library with everything inside: RavAva + Opus (+ webrtc-audio-processing: echo
 cancellation, noise suppression, AGC, low-cut). Nothing else has to be built or installed.
 
-**Why armeabi-v7a has no webrtc:** webrtc needs API 24 on 32-bit ARM, and RavAva supports Android 5 (API 21). So the 32-bit
-ARM file has no echo canceller (`AudioProcessor::IsAvailable()` is false there; use a headset on those phones). The other
-ABIs have it and still work from API 21.
+**Why armeabi-v7a and x86 have no webrtc:** webrtc needs API 24 on the 32-bit ABIs, and RavAva supports Android 5 (API 21). So
+the 32-bit files have no echo canceller (`AudioProcessor::IsAvailable()` is false there; use a headset on those phones).
+arm64-v8a and x86_64 have it and still work from API 21.
 
 ## What you need (dependencies)
 
@@ -76,13 +76,13 @@ You do **not** need to install Opus, webrtc, meson or anything else. Everything 
 ## If the build fails
 - `undefined reference to ... std::` / `__cxa_...`: the app uses another STL: set `-DANDROID_STL=c++_shared`.
 - `undefined reference to AAudio... / SL_IID_...`: link `OpenSLES` and `android`, and `dl`.
-- `cannot locate symbol ... fseeko` on API 21..23: you used a webrtc build for armeabi-v7a; use the `armeabi-v7a` file from this package (without webrtc).
+- `cannot locate symbol ... fseeko` on API 21..23: you used a webrtc build for a 32-bit ABI; use the `armeabi-v7a` / `x86` file from this package (without webrtc).
 - `dlopen failed: library "libc++_shared.so" not found`: the STL is not packaged (Gradle packages it when `ANDROID_STL=c++_shared`).
 - Silence / no microphone: `RECORD_AUDIO` not granted before `Recorder::Start()`.
 - `Recorder` reports `MicEvent::Busy`: a call or another app has the microphone (see the README, "Microphone events").
 
 ## How it is built
-One job per ABI: Opus 1.5.2 and (not on armeabi-v7a) webrtc-audio-processing 1.3 (`libs/webrtc/build_android.sh`, cached) are built
+One job per ABI: Opus 1.5.2 and (not on the 32-bit ABIs) webrtc-audio-processing 1.3 (`libs/webrtc/build_android.sh`, cached) are built
 with the NDK, RavAva is built with CMake (`src/ravava`), the three archives are merged with `llvm-ar`, a small program is linked
 against the result, and a last job collects every ABI into `RavAva-Android-static`. If the webrtc step of an ABI fails, that ABI
 is built without echo cancellation and the workflow shows a warning (`BUILD-INFO.txt` says which).

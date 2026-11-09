@@ -1,7 +1,7 @@
 # Builds libRavAva for Android as ONE static library per ABI: RavAva + Opus + webrtc-audio-processing (echo cancellation,
 # noise suppression, AGC) merged into lib/<abi>/libRavAva.a, with every header an app needs in include/.
-#   arm64-v8a, x86_64, x86 : with webrtc
-#   armeabi-v7a            : WITHOUT webrtc, on purpose: webrtc needs API 24 on 32-bit ARM and the library supports Android 5 (API 21)
+#   arm64-v8a, x86_64      : with webrtc
+#   armeabi-v7a, x86       : WITHOUT webrtc, on purpose: webrtc needs API 24 on the 32-bit ABIs and the library supports Android 5 (API 21)
 # Used by hand (Run workflow -> artifact "RavAva-Android-static") and by build-native-android.yml (workflow_call), so there is
 # exactly one place that builds the Android library.
 # Built with NDK 26.1, minSdk 21, STL c++_shared (the app must use c++_shared too: ANDROID_STL=c++_shared).
@@ -9,8 +9,6 @@
 name: Build static library Android
 
 on:
-  push:                                        # TEMPORARY: lets this branch run all 4 ABIs before the file is on master
-    branches: [feature/android-static-library]
   workflow_dispatch:
     inputs:
       abis:
@@ -34,8 +32,8 @@ jobs:
       OPUS_VERSION: "1.5.2"
       NDK_VERSION: "26.1.10909125"
       API: "21"
-      # webrtc-audio-processing is not built for 32-bit ARM (needs API 24, we keep API 21 for Android 5)
-      WITH_WEBRTC: ${{ matrix.abi != 'armeabi-v7a' }}
+      # webrtc-audio-processing is not built for the 32-bit ABIs (armeabi-v7a, x86): it needs API 24 there, we keep API 21 for Android 5
+      WITH_WEBRTC: ${{ matrix.abi != 'armeabi-v7a' && matrix.abi != 'x86' }}
     steps:
       - uses: actions/checkout@v4
 

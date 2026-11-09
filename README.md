@@ -605,7 +605,7 @@ target_link_libraries(myapp PRIVATE RavAva::RavAva)
 ### 12.5 Android (NDK)
 
 You do not have to build it yourself: `.github/workflows/build-static-library-android.yml` builds one `libRavAva.a` per ABI
-(RavAva + Opus + webrtc merged; `armeabi-v7a` without webrtc because webrtc needs API 24 on 32-bit ARM and the library supports
+(RavAva + Opus + webrtc merged; `armeabi-v7a` and `x86` without webrtc because webrtc needs API 24 on the 32-bit ABIs and the library supports
 Android 5) with all headers (artifact `RavAva-Android-static`). Link it with `ANDROID_STL=c++_shared` and the system libraries
 `log android OpenSLES dl m`. Step-by-step Gradle / CMake integration, dependencies and troubleshooting: `example/ANDROID.md`
 (also inside the artifact as `README.md`). The demo `build-demo/android-native/` is built against exactly that artifact
