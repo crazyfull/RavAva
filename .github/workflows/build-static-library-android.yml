@@ -9,6 +9,8 @@
 name: Build static library Android
 
 on:
+  push:                                        # TEMPORARY: lets this branch run all 4 ABIs before the file is on master
+    branches: [feature/android-static-library]
   workflow_dispatch:
     inputs:
       abis:
