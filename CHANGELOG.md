@@ -7,9 +7,14 @@ Not yet released as a number: everything below is in 0.1.0.
 ## 0.1.0 (in development)
 
 ### Fixed
+- `Player` adaptive playout is now really ON by default (the header and README said so, the member initialiser was `false`).
+- `AudioConfig::useEchoCancel` documented as a hint only (the library never reads it; AEC runs when an `AudioProcessor` is attached).
 - iOS: after a phone call / Siri the audio did not come back. iOS leaves the AVAudioSession inactive after an interruption and miniaudio activates it only once (when its context is created), so the re-opened devices started but stayed silent. `platform/IosAudioSession.cpp` now activates the session when the interruption ends and before every device (re)open.
 
 ### Added
+- `ravava::Bandwidth::{Narrowband..Fullband}` constants for `AudioConfig::maxBandwidth`; a warning when `Bitrate × frameMs` can produce datagrams over ~1200 bytes.
+- `THIRD_PARTY_NOTICES.md` (licenses of Opus, miniaudio, webrtc, abseil, PFFFT; provenance and SHA-256 of `libs/opus/win32`).
+- README: benchmark table re-measured legacy → adaptive; security, MTU, iOS-session and 32-bit AEC notes; clearer real-time-safety and threading wording.
 - iOS demo: the Log tab shows the library's own log (devices, interruptions) and "Copy log" includes it.
 - Android static library: `.github/workflows/build-static-library-android.yml` -> `RavAva-Android-static` (`lib/<abi>/libRavAva.a` with Opus and webrtc merged in, `include/`; armeabi-v7a and x86 without webrtc so Android 5 stays supported). The native demo builds against it (`-PravavaPrebuilt`). `src/ravava/CMakeLists.txt` finds `libwebrtc_apm.a` on Android and sets the miniaudio Android backends.
 - iOS: a call / Siri / another app taking the audio session is reported like on Android (`MicEvent::Interrupted`, `MicReason::SystemInterruption`, then `Free`); the speaker is re-opened by `Player::KeepDevice()` after the interruption (`OsAudioInterrupted()`), the microphone by the `automaticResumeAfterFreeMic` logic. A missed "interruption ended" expires after 2 minutes.
