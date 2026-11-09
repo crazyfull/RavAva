@@ -29,7 +29,7 @@ crazyfull/RavAva/
 └── .github/workflows/
 ```
 
-The CMakeLists walks up 5 levels (`../../../../..`) to find the library sources.
+The CMakeLists walks up 6 levels (`../../../../../..`) to find the library sources.
 
 ---
 

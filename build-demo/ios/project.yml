@@ -17,7 +17,7 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-      - path: ../android5-native-demo/app/src/main/cpp/VoiceSession.cpp
+      - path: ../android-native/app/src/main/cpp/VoiceSession.cpp
         compilerFlags: ["-std=c++17"]
     settings:
       base:
@@ -27,14 +27,14 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Info.plist
         HEADER_SEARCH_PATHS:
-          - $(SRCROOT)/../android5-native-demo/app/src/main/cpp
+          - $(SRCROOT)/../android-native/app/src/main/cpp
         OTHER_LDFLAGS: ["-ObjC"]
         CODE_SIGN_STYLE: Manual
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGN_IDENTITY: ""
     dependencies:
-      - framework: ../RavAva-iOS/RavAva.xcframework
+      - framework: ../../RavAva-iOS/RavAva.xcframework
         embed: false
       - sdk: AVFoundation.framework
       - sdk: AudioToolbox.framework
