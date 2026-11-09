@@ -1,5 +1,5 @@
 # Builds the RavAva iPhone demo (ios-demo/) as an UNSIGNED .ipa on a macOS runner (no Mac needed by the developer).
-# The library itself (RavAva + Opus + webrtc in one libRavAva.a, plus headers) comes from build-static-library-ios.yml;
+# The library itself (RavAva.xcframework: device + simulator, Opus + webrtc inside, with headers) comes from build-static-library-ios.yml;
 # this workflow only compiles the app against that artifact.
 # The .ipa is signed later on the PC with Sideloadly / AltStore using a free Apple ID (see ios-demo/README.md).
 name: Build Demo iOS
@@ -26,8 +26,8 @@ jobs:
 
       - name: Check the library
         run: |
-          lipo -info RavAva-iOS/lib/libRavAva.a
-          ls RavAva-iOS/include | head -20
+          find RavAva-iOS -maxdepth 3 | sort
+          lipo -info RavAva-iOS/RavAva.xcframework/ios-arm64/libRavAva.a
 
       - name: Generate the Xcode project
         run: |
