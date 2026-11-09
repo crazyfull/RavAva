@@ -162,7 +162,7 @@ jobs:
           distributionBase=GRADLE_USER_HOME
           distributionPath=wrapper/dists
           distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-          networkTimeout=10000
+          networkTimeout=120000
           validateDistributionUrl=true
           zipStoreBase=GRADLE_USER_HOME
           zipStorePath=wrapper/dists
@@ -183,10 +183,17 @@ jobs:
         if: steps.skip.outputs.run == 'true'
         working-directory: ${{ steps.demo.outputs.dir }}
         run: |
-          ./gradlew assembleDebug \
-            -PravavaAbi=${{ matrix.abi }} \
-            -PravavaPrebuilt=$GITHUB_WORKSPACE/RavAva-Android \
-            --stacktrace 2>&1 | tee build.log
+          # services.gradle.org / Maven sometimes time out on a runner: try up to 3 times
+          for attempt in 1 2 3; do
+            ./gradlew assembleDebug \
+              -PravavaAbi=${{ matrix.abi }} \
+              -PravavaPrebuilt=$GITHUB_WORKSPACE/RavAva-Android \
+              --stacktrace 2>&1 | tee build.log
+            [ -n "$(find app/build/outputs/apk -name '*.apk' 2>/dev/null | head -1)" ] && break
+            echo "Gradle attempt $attempt did not produce an APK"
+            grep -q -E "timeout|Could not resolve|Could not GET|Connection reset|504|503" build.log || break   # a real build error: do not retry
+            sleep 15
+          done
 
           APK=$(find app/build/outputs/apk -name "*.apk" | head -1)
           if [ -z "$APK" ]; then
