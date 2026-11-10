@@ -39,7 +39,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: webrtc-install
-          key: webrtc-1.3-${{ matrix.sdk }}-arm64-${{ env.IOS_MIN }}-${{ hashFiles('libs/webrtc/build_ios.sh') }}
+          key: webrtc-1.3-${{ matrix.sdk }}-arm64-${{ env.IOS_MIN }}-${{ hashFiles('libs/webrtc/build_ios.sh', 'libs/collect_licenses.sh') }}
 
       - name: Build webrtc-audio-processing (${{ matrix.sdk }} arm64)
         if: steps.webrtc_cache.outputs.cache-hit != 'true'
@@ -103,7 +103,13 @@ jobs:
           # license texts travel with the binary (Opus / webrtc: BSD-3-Clause, abseil: Apache-2.0)
           mkdir -p RavAva-iOS/licenses/opus RavAva-iOS/licenses/ravava
           cp "opus-${OPUS_VERSION}/COPYING" RavAva-iOS/licenses/opus/COPYING
-          [ -n "$WEBRTC_ROOT" ] && [ -d "$WEBRTC_ROOT/licenses" ] && cp -R "$WEBRTC_ROOT/licenses/." RavAva-iOS/licenses/
+          if [ -n "$WEBRTC_ROOT" ]; then      # webrtc is inside the binary: its license texts MUST be in the package
+            [ -d "$WEBRTC_ROOT/licenses/webrtc-audio-processing" ] || { echo "::error::webrtc was linked but $WEBRTC_ROOT/licenses is missing (stale cache?)"; exit 1; }
+            cp -R "$WEBRTC_ROOT/licenses/." RavAva-iOS/licenses/
+            ls RavAva-iOS/licenses/webrtc-audio-processing | grep -qi 'abseil' || { echo "::error::no abseil license in the package"; exit 1; }
+          fi
+          for f in opus/COPYING THIRD_PARTY_NOTICES.md ravava/LICENSE; do [ -s RavAva-iOS/licenses/$f ] || { echo "::error::missing license file $f"; exit 1; }; done
+          find RavAva-iOS/licenses -type f | sort
           cp THIRD_PARTY_NOTICES.md RavAva-iOS/licenses/THIRD_PARTY_NOTICES.md
           cp LICENSE RavAva-iOS/licenses/ravava/LICENSE
           cp example/IOS.md RavAva-iOS/README.md
@@ -150,7 +156,10 @@ jobs:
               -library slice-iphonesimulator/lib/libRavAva.a -headers slice-iphonesimulator/include \
               -output RavAva-iOS-static/RavAva.xcframework
           cp example/IOS.md RavAva-iOS-static/README.md
-          cp -R slice-iphoneos/licenses RavAva-iOS-static/licenses
+          # both slices (they differ if webrtc failed on one of them): merge, so nothing is lost
+          mkdir -p RavAva-iOS-static/licenses
+          cp -R slice-iphoneos/licenses/. RavAva-iOS-static/licenses/
+          cp -R slice-iphonesimulator/licenses/. RavAva-iOS-static/licenses/
           find RavAva-iOS-static -maxdepth 3 | sort
           cat RavAva-iOS-static/RavAva.xcframework/Info.plist | head -40
 

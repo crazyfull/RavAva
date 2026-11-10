@@ -93,7 +93,7 @@ int main(int argc, char **argv)
     cfg.maxBandwidth = 1105;                    // OPUS_BANDWIDTH_FULLBAND
     cfg.Bitrate = 64000;
     cfg.frameMs = 20;
-    bool useEchoCancel = false;                 // (our own flag: AudioConfig::useEchoCancel is deprecated, AEC runs when an AudioProcessor is attached)
+    bool useEchoCancel = false;
     cfg.expectedLossPerc = 0;
 
     int inIndex = -1, outIndex = -1, gain = 100, volume = 100, seconds = 0, echo = 0;

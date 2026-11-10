@@ -9,11 +9,12 @@ Not yet released as a number: everything below is in 0.1.0.
 ### Fixed
 - `ConferencePlayer` copies the `AudioConfig` in `SetConfig()`: new talkers are built later (from `Play()`), when the caller's config may already be gone. (`Recorder::Start()` and `Player::SetConfig()` already copied / read it synchronously.)
 - MTU warning now uses `AudioConfig::MaxDatagramEstimate()`: 2 x mean payload (VBR peaks, FEC) + DRED allowance + 3-byte audio header + 3-byte envelope, threshold 1200 bytes.
-- `AudioConfig::useEchoCancel` is documented as deprecated and never read (examples and tests use their own flag).
 - CI packages `RavAva-iOS-static` and `RavAva-Android-static` now contain `licenses/` (Opus, webrtc-audio-processing, abseil and other dependency license texts copied from the compiled sources, `THIRD_PARTY_NOTICES.md`, RavAva `LICENSE`).
-- `Player` adaptive playout is now really ON by default (the header and README said so, the member initialiser was `false`).
-- `AudioConfig::useEchoCancel` documented as a hint only (the library never reads it; AEC runs when an `AudioProcessor` is attached).
 - iOS: after a phone call / Siri the audio did not come back. iOS leaves the AVAudioSession inactive after an interruption and miniaudio activates it only once (when its context is created), so the re-opened devices started but stayed silent. `platform/IosAudioSession.cpp` now activates the session when the interruption ends and before every device (re)open.
+
+### Changed
+- `Player` adaptive playout is now ON by default (the header and README already said so; the member initialiser was `false`). Call `SetAdaptivePlayout(false)` for the old reactive buffer.
+- **Removed** `AudioConfig::useEchoCancel`: the library never read it (echo cancellation runs when an `AudioProcessor` is attached with `SetAudioProcessor`), and with default `true` it was a trap. Keep your own flag (the Qt demo and `example/loopback` do).
 
 ### Added
 - `ravava::Bandwidth::{Narrowband..Fullband}` constants for `AudioConfig::maxBandwidth`; a warning when `Bitrate × frameMs` can produce datagrams over ~1200 bytes.
