@@ -137,10 +137,10 @@ jobs:
             cp -R "$WEBRTC_ROOT/licenses/." slice/licenses/
             ls slice/licenses/webrtc-audio-processing | grep -qi 'abseil' || { echo "::error::no abseil license in the package"; exit 1; }
           fi
-          for f in opus/COPYING THIRD_PARTY_NOTICES.md ravava/LICENSE; do [ -s slice/licenses/$f ] || { echo "::error::missing license file $f"; exit 1; }; done
-          find slice/licenses -type f | sort
           cp THIRD_PARTY_NOTICES.md slice/licenses/THIRD_PARTY_NOTICES.md
           cp LICENSE slice/licenses/ravava/LICENSE
+          for f in opus/COPYING THIRD_PARTY_NOTICES.md ravava/LICENSE; do [ -s slice/licenses/$f ] || { echo "::error::missing license file $f"; exit 1; }; done
+          find slice/licenses -type f | sort
           { echo "abi: $abi"
             echo "webrtc (echo cancellation, noise suppression, AGC): $([ -n "$WEBRTC_ROOT" ] && echo yes || echo no)"
             echo "minSdk: $API   NDK: $NDK_VERSION   STL: c++_shared   Opus: $OPUS_VERSION"; } > "slice/lib/$abi/BUILD-INFO.txt"
