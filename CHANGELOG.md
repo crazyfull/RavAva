@@ -22,7 +22,7 @@ Not yet released as a number: everything below is in 0.1.0.
 - `AudioConfig::maxPacketBytes` (default 1194): a hard limit passed to `opus_encode`, so VBR peaks / FEC / DRED cannot exceed ~1200 bytes on the wire (was only a warning). `0` = old behaviour (up to 1500).
 - `AudioConfig::Validate()` rejects an `outputRate` Opus does not support (was silently replaced by 48000); error text says `Bitrate`; `frameMs` comment lists the real values.
 - Log lines from `OpusCodec::Encode/Decode` (audio thread) are rate-limited: the first 3, then every 1024th. The jitter buffer forgets "sender uses DTX" when it resyncs to a new sender.
-- `Player` adaptive playout is now ON by default (the header and README already said so; the member initialiser was `false`). Call `SetAdaptivePlayout(false)` for the old reactive buffer.
+- `Player` adaptive playout stays **OFF by default** (an earlier entry of this changelog turned it on; on a very weak connection the adaptive buffer's frame drop/repeat was heard as a repeated frame every 1-3 s although no packet was lost). Header and README now say so; opt in with `SetAdaptivePlayout(true)`.
 - **Removed** `AudioConfig::useEchoCancel`: the library never read it (echo cancellation runs when an `AudioProcessor` is attached with `SetAudioProcessor`), and with default `true` it was a trap. Keep your own flag (the Qt demo and `example/loopback` do).
 
 ### Added

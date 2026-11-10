@@ -96,7 +96,7 @@ transport it would force on you.
 
 ### Network resilience (receive side)
 - **Jitter buffer** per talker: reorders, drops duplicates, detects loss, recovers with FEC → DRED → PLC.
-- **Adaptive playout** (on by default): follows measured jitter — deeper *before* audio breaks up, shallower when the
+- **Adaptive playout** (opt-in: `SetAdaptivePlayout(true)`; off by default, see the note in the changelog): follows measured jitter — deeper *before* audio breaks up, shallower when the
   network calms down — and adjusts delay by dropping / repeating single frames at quiet moments, not in the middle of words.
 - Sender restart, sender format switch (frame size, bandwidth, mono/stereo), stray or garbage packets: handled without
   rebuilding anything on the audio thread.
@@ -157,7 +157,7 @@ transport it would force on you.
 
 Numbers below come from the repository's own **network simulator** (`tests/net_sim_test.cpp`, command `./net_sim_test compare`):
 a steady-tone signal, 20 ms frames, 16 kbit/s Opus with in-band FEC, on a virtual clock. Each cell is **legacy → adaptive**
-(legacy = reactive buffer without arrival timestamps; adaptive = the buffer used after `SetAdaptivePlayout(true)`; it is the default). *Bad %* is the share of played frames that were neither real audio nor FEC-recovered.
+(legacy = reactive buffer without arrival timestamps; adaptive = the buffer used after `SetAdaptivePlayout(true)`; it is **not** the default). *Bad %* is the share of played frames that were neither real audio nor FEC-recovered.
 *Delay* is the average playout delay of the buffer in the simulator (it does not include the capture/playback device latency).
 It is a simulation: a regression benchmark and an indication, not a promise for a particular network. Adaptive trades a little more
 concealment for much lower delay, so Bad % is about the same while delay drops.
@@ -527,7 +527,7 @@ meant for a 1 Hz timer: loss = `stats.lost`, recovered = `stats.fec + stats.plc 
 
 | Call | Meaning |
 |---|---|
-| `SetAdaptivePlayout(bool)` | default on; off = plain reactive buffer |
+| `SetAdaptivePlayout(bool)` | default **off** (plain reactive buffer); on = adaptive playout |
 | `SetJitterLimitsMs(min, max)` | jitter buffer depth limits (default 40 … 200 ms) |
 | `SetDredPlayback(bool)` / `SetDredFloorMs(ms)` | rebuild bursts of lost packets from DRED; the floor keeps enough audio buffered for it (costs delay) |
 
