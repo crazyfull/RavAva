@@ -1,7 +1,9 @@
 # Third-party notices
 
 RavAva itself is proprietary (see `LICENSE`). It links or bundles the components below, which keep their own licenses.
-If you redistribute a binary built from RavAva you must also ship these notices and license texts.
+If you redistribute a binary built from RavAva you must also ship these notices and the license texts. The CI packages
+(`RavAva-iOS-static`, `RavAva-Android-static`) already carry them in `licenses/` (texts copied from the exact sources that were compiled);
+for your own builds run `libs/collect_licenses.sh <source dir> <out dir> <name>` on each dependency's source tree.
 
 | Component | Used for | License | Where |
 |---|---|---|---|

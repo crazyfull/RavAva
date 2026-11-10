@@ -113,3 +113,9 @@ The whole API, the safety rules and the recipes are in the main `README.md` (sec
 webrtc-audio-processing 1.3 (`libs/webrtc/build_ios.sh`, cached), builds RavAva with CMake, merges the three into one `libRavAva.a`
 (`libtool -static`), links a small test program, and a last job packs both slices with `xcodebuild -create-xcframework`.
 If the webrtc step of a slice fails, that slice is built without echo cancellation and the workflow shows a warning.
+
+## Licenses
+
+`licenses/` next to `RavAva.xcframework` holds the license texts of everything inside `libRavAva.a` (Opus, webrtc-audio-processing,
+abseil, …) and `THIRD_PARTY_NOTICES.md`. An app that ships this library must show / include them (BSD-3-Clause and Apache-2.0
+require the text to travel with the binary), e.g. in an in-app "Open source licenses" screen.

@@ -499,7 +499,7 @@ meant for a 1 Hz timer: loss = `stats.lost`, recovered = `stats.fec + stats.plc 
 | `expectedLossPerc` | 20 | tells the encoder how much redundancy to spend (0–100) |
 | `dredMs` | 0 | Opus 1.5+ Deep REDundancy: ms of past audio in every packet (needs libopus with DRED and `RAVAVA_ENABLE_DRED`; from ≈ 32 kbit/s) |
 | `musicMode` | false | Opus tuned for music instead of speech (keeps treble, full bandwidth at low rates) |
-| `useEchoCancel` | true | **hint only** — the library never reads it; AEC runs only if you create an `AudioProcessor` (webrtc build) and attach it with `SetAudioProcessor` |
+| `useEchoCancel` | true | **deprecated, never read** — AEC runs only if you create an `AudioProcessor` (webrtc build) and attach it with `SetAudioProcessor`; keep your own flag |
 | `aecNearendProtection` | 0 | 0–3: higher = own voice cut less during double talk |
 | `aecDelayMs` | 100 | start hint for the echo delay (webrtc refines it) |
 | `noiseSuppression` | 0 | 0 off · 1 low · 2 moderate · 3 high · 4 very high |

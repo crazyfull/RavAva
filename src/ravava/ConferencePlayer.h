@@ -91,7 +91,8 @@ private:
     void sweep(int64_t now);                                    // under m_netMutex: release idle talkers, free retired ones
     void reapRetired();                                         // under m_netMutex
 
-    AudioConfig *m_pConfig = nullptr;
+    AudioConfig m_cfg;                       // copy taken by SetConfig(): new talkers are built later, from Play(), when the caller's AudioConfig may be gone
+    AudioConfig *m_pConfig = nullptr;        // null until SetConfig(); points to m_cfg
     int m_maxStreams = 16;
     std::atomic<int> m_idleMs{10000};
     std::atomic<int> m_adaptive{-1};                            // -1 = leave the Player default

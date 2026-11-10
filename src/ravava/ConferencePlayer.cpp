@@ -40,12 +40,13 @@ void ConferencePlayer::SetConfig(AudioConfig *pConfig)
 {
     if(!pConfig)
         return;
-    m_pConfig = pConfig;
+    m_cfg = *pConfig;
+    m_pConfig = &m_cfg;
     m_channels = pConfig->channels;
     // one talker is pulled in chunks of 20 ms: the device may ask for more than that in one callback
     m_chunkFrames = uint32_t(std::max(1, pConfig->RenderRate() / 50));
     m_scratch.assign(size_t(m_chunkFrames) * m_channels, 0);
-    m_hub.SetConfig(pConfig);               // opens the speaker
+    m_hub.SetConfig(&m_cfg);               // opens the speaker
 }
 
 ConferencePlayer::Talker *ConferencePlayer::find(uint16_t id) const

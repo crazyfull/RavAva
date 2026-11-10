@@ -129,6 +129,12 @@ jobs:
             echo "save"; echo "end"; } | "$NDK_BIN/llvm-ar" -M
           "$NDK_BIN/llvm-ranlib" "slice/lib/$abi/libRavAva.a"
           cp -R "ravava-$abi/include" slice/include
+          # license texts travel with the binary (Opus / webrtc: BSD-3-Clause, abseil: Apache-2.0)
+          mkdir -p slice/licenses/opus slice/licenses/ravava
+          cp "opus-${OPUS_VERSION}/COPYING" slice/licenses/opus/COPYING
+          [ -n "$WEBRTC_ROOT" ] && [ -d "$WEBRTC_ROOT/licenses" ] && cp -R "$WEBRTC_ROOT/licenses/." slice/licenses/
+          cp THIRD_PARTY_NOTICES.md slice/licenses/THIRD_PARTY_NOTICES.md
+          cp LICENSE slice/licenses/ravava/LICENSE
           { echo "abi: $abi"
             echo "webrtc (echo cancellation, noise suppression, AGC): $([ -n "$WEBRTC_ROOT" ] && echo yes || echo no)"
             echo "minSdk: $API   NDK: $NDK_VERSION   STL: c++_shared   Opus: $OPUS_VERSION"; } > "slice/lib/$abi/BUILD-INFO.txt"
@@ -171,6 +177,7 @@ jobs:
           for d in slices/slice-*; do
             [ -d RavAva-Android-static/include ] || cp -R "$d/include" RavAva-Android-static/include
             cp -R "$d"/lib/* RavAva-Android-static/lib/
+            mkdir -p RavAva-Android-static/licenses && cp -R "$d"/licenses/. RavAva-Android-static/licenses/
           done
           cp example/ANDROID.md RavAva-Android-static/README.md
           cat RavAva-Android-static/lib/*/BUILD-INFO.txt
