@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: webrtc-install
-          key: webrtc-1.3-native-android-${{ matrix.abi }}-api21-ndk26.1.10909125-${{ hashFiles('libs/webrtc/build_android.sh') }}
+          key: webrtc-1.3-native-android-${{ matrix.abi }}-api21-ndk26.1.10909125-${{ hashFiles('libs/webrtc/build_android.sh', 'libs/collect_licenses.sh') }}
 
       - name: Build webrtc-audio-processing (${{ matrix.abi }})
         if: env.WITH_WEBRTC == 'true' && steps.webrtc_cache.outputs.cache-hit != 'true'
@@ -132,7 +132,13 @@ jobs:
           # license texts travel with the binary (Opus / webrtc: BSD-3-Clause, abseil: Apache-2.0)
           mkdir -p slice/licenses/opus slice/licenses/ravava
           cp "opus-${OPUS_VERSION}/COPYING" slice/licenses/opus/COPYING
-          [ -n "$WEBRTC_ROOT" ] && [ -d "$WEBRTC_ROOT/licenses" ] && cp -R "$WEBRTC_ROOT/licenses/." slice/licenses/
+          if [ -n "$WEBRTC_ROOT" ]; then      # webrtc is inside the binary: its license texts MUST be in the package
+            [ -d "$WEBRTC_ROOT/licenses/webrtc-audio-processing" ] || { echo "::error::webrtc was linked but $WEBRTC_ROOT/licenses is missing (stale cache?)"; exit 1; }
+            cp -R "$WEBRTC_ROOT/licenses/." slice/licenses/
+            ls slice/licenses/webrtc-audio-processing | grep -qi 'abseil' || { echo "::error::no abseil license in the package"; exit 1; }
+          fi
+          for f in opus/COPYING THIRD_PARTY_NOTICES.md ravava/LICENSE; do [ -s slice/licenses/$f ] || { echo "::error::missing license file $f"; exit 1; }; done
+          find slice/licenses -type f | sort
           cp THIRD_PARTY_NOTICES.md slice/licenses/THIRD_PARTY_NOTICES.md
           cp LICENSE slice/licenses/ravava/LICENSE
           { echo "abi: $abi"

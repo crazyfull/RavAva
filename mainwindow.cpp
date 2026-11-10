@@ -372,7 +372,7 @@ void MainWindow::initAudio()
     m_AudioConfig.maxBandwidth = ui->BandWith_comboBox->currentData().toInt();
     m_AudioConfig.playMusic = false;        // the music buttons mix the file into the stream at run time (Recorder::Music()->Play)
     m_AudioConfig.musicPath = ui->txtMusicPath->text().toUtf8().toStdString();
-    m_AudioConfig.useEchoCancel = ui->echoLevel_comboBox->currentIndex() == 0 ? false: true;
+    m_useEchoCancel = ui->echoLevel_comboBox->currentIndex() != 0;
     m_AudioConfig.aecNearendProtection = ui->echoLevel_comboBox->currentIndex();
     m_AudioConfig.noiseSuppression = ui->noise_comboBox->currentIndex();
     m_AudioConfig.autoGain = ui->autoGain_checkBox->isChecked();
@@ -384,7 +384,7 @@ void MainWindow::initAudio()
 
     // Echo cancellation: ONE instance, the player feeds it what the speaker plays, the recorder
     // cleans the mic with it. (Pointless while playing a music file: the mic is only a clock then.)
-    const bool wantAec = m_AudioConfig.useEchoCancel;
+    const bool wantAec = m_useEchoCancel;
     if(AudioProcessor::IsAvailable() && (wantAec || m_AudioConfig.noiseSuppression > 0 || m_AudioConfig.autoGain || m_AudioConfig.highPassFilter) && !m_AudioConfig.playMusic){
         auto aec = std::make_shared<AudioProcessor>();
         AudioProcessor::Options opt;
@@ -655,7 +655,7 @@ void MainWindow::OnStatsTimer()
         t += QString("   not playable / other format %1").arg(st.formatDropped);
 
     AudioProcessor::Stats aec;
-    if(m_AudioConfig.useEchoCancel && m_pAec && m_pAec->GetStats(aec)){
+    if(m_useEchoCancel && m_pAec && m_pAec->GetStats(aec)){
         t += aec.hasDelay ? QString("\nEcho     : cancelling, estimated echo delay %1 ms").arg(aec.delayMs)
                           : QString("\nEcho     : cancelling (still measuring the delay)");
     }else{

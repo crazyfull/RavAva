@@ -499,7 +499,6 @@ meant for a 1 Hz timer: loss = `stats.lost`, recovered = `stats.fec + stats.plc 
 | `expectedLossPerc` | 20 | tells the encoder how much redundancy to spend (0–100) |
 | `dredMs` | 0 | Opus 1.5+ Deep REDundancy: ms of past audio in every packet (needs libopus with DRED and `RAVAVA_ENABLE_DRED`; from ≈ 32 kbit/s) |
 | `musicMode` | false | Opus tuned for music instead of speech (keeps treble, full bandwidth at low rates) |
-| `useEchoCancel` | true | **deprecated, never read** — AEC runs only if you create an `AudioProcessor` (webrtc build) and attach it with `SetAudioProcessor`; keep your own flag |
 | `aecNearendProtection` | 0 | 0–3: higher = own voice cut less during double talk |
 | `aecDelayMs` | 100 | start hint for the echo delay (webrtc refines it) |
 | `noiseSuppression` | 0 | 0 off · 1 low · 2 moderate · 3 high · 4 very high |
@@ -705,7 +704,7 @@ of the demo app. To use the library: drag the xcframework into Xcode, add `-ObjC
 
 **Naming standard** — namespace `ravava`; classes and files `PascalCase`; public methods `PascalCase` (`SetVolume`);
 private methods and locals `camelCase`; members `m_camelCase`; macros `RAVAVA_UPPER_SNAKE`; header guards `RAVAVA_<FILE>_H`;
-booleans of the C++ API methods start with `Is` / `Has`. `AudioConfig` is a plain settings struct and keeps its historical field names (`Bitrate`, `useEchoCancel`, …); they are stable API, not a style example. Full details: `src/ravava/README.md`.
+booleans of the C++ API methods start with `Is` / `Has`. `AudioConfig` is a plain settings struct and keeps its historical field names (`Bitrate`, …); they are stable API, not a style example. Full details: `src/ravava/README.md`.
 
 ---
 

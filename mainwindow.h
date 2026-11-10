@@ -27,6 +27,7 @@ private:
     ravava::ConferencePlayer *m_pAudioPlayer  = nullptr;
     std::shared_ptr<ravava::AudioProcessor> m_pAec;      // shared by recorder (mic) and player (speaker)
     ravava::AudioConfig m_AudioConfig;
+    bool m_useEchoCancel = false;                         // the UI choice (echo cancellation runs when an AudioProcessor is attached)
     class QUdpSocket *m_pUDPClient;
     class QTcpSocket *m_pTCPClient;
 

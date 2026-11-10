@@ -67,9 +67,6 @@ struct AudioConfig
                                 //Bluetooth microphone (Bluetooth headphones play as "high quality" media, the phone's microphone is used).
 
     // ---- echo cancellation (webrtc-audio-processing, see AudioProcessor.h) ----
-    // DEPRECATED, never read by the library (a [[deprecated]] attribute would warn on every implicit copy of AudioConfig): echo
-    // cancellation runs when an AudioProcessor is attached (SetAudioProcessor). Keep your own flag; the field is removed in a later version.
-    bool useEchoCancel = true;
     int aecNearendProtection = 0; //0..3: higher = own voice is cut less during double talk (a bit more echo may pass)
     int noiseSuppression = 0;   //0 = off, 1..4 = low .. very high (webrtc noise suppression on the mic)
     bool autoGain = false;      //webrtc AGC2: automatic mic level + limiter
