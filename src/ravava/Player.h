@@ -78,7 +78,7 @@ class Player
     PacketQueue m_queue;                    // network/GUI thread(s) -> audio thread
     std::atomic<bool> m_ready;              // true once the speaker runs: Play() accepts datagrams
     std::atomic<uint32_t> m_ingestDropped;  // datagrams dropped because the queue was full
-    std::atomic<bool> m_adaptive{true};      // see SetAdaptivePlayout() (default ON, as documented)
+    std::atomic<bool> m_adaptive{false};     // see SetAdaptivePlayout() (default OFF: the reactive buffer; adaptive repeats / drops single frames to follow the jitter)
     std::atomic<int> m_limMinMs{0}, m_limMaxMs{0};
     std::atomic<bool> m_dred{false};
     std::atomic<int> m_dredFloorMs{0};
@@ -169,9 +169,9 @@ public:
     // player. Before SetConfig(); refused afterwards.
     void SetMixSource(AudioMixSource *src);
 
-    // Adaptive playout (default ON): the player stamps every datagram when Play() gets it and the jitter buffer follows the
+    // Adaptive playout (default OFF): the player stamps every datagram when Play() gets it and the jitter buffer follows the
     // measured network jitter (deeper BEFORE the audio breaks up, shallower again when the network is calm), and keeps the
-    // delay near what the network needs by dropping / repeating single frames at quiet moments. OFF = the plain reactive
+    // delay near what the network needs by dropping / repeating single frames at quiet moments. OFF (the DEFAULT) = the plain reactive
     // buffer (grows only after an underrun). Both calls apply to streams created afterwards: call them BEFORE the first Play().
     void SetAdaptivePlayout(bool on) { m_adaptive.store(on, std::memory_order_relaxed); }
     // Use Opus DRED data (deep redundancy, Opus 1.5+) to rebuild runs of lost packets. Needs libopus built with --enable-dred and
