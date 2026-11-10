@@ -115,7 +115,7 @@ static void testPacketQueue()
 static void testDatagramEstimate()
 {
     std::printf("AudioConfig::MaxDatagramEstimate\n");
-    AudioConfig c; c.Bitrate = 16000; c.frameMs = 20; c.dredMs = 0;
+    AudioConfig c; c.maxPacketBytes = 0; c.Bitrate = 16000; c.frameMs = 20; c.dredMs = 0;
     CHECK(c.MaxDatagramEstimate() == 40 * 2 + 6);                 // mean 40 bytes
     // boundary: the largest 20 ms bitrate that stays under the limit, and the next step over it
     c.frameMs = 20;
@@ -136,6 +136,21 @@ static void testDatagramEstimate()
     CHECK(c.MaxDatagramEstimate() == without + 1600);
     CHECK(c.MaxDatagramEstimate() > AudioConfig::MaxDatagramWarnBytes);
     CHECK(AudioConfig().MaxDatagramEstimate() < AudioConfig::MaxDatagramWarnBytes);   // the defaults are fine
+    // with the default hard limit the estimate never goes over the wire limit, and the encoder really obeys it
+    AudioConfig d; d.Bitrate = 510000; d.frameMs = 60;
+    CHECK(d.maxPacketBytes == 1194 && d.MaxDatagramEstimate() == 1200 && d.Validate());
+    OpusCodec enc; CHECK(enc.InitEncoder(d));
+    std::mt19937 rng(3);
+    const int n = d.FrameSamples();
+    std::vector<int16_t> noise(size_t(n) * d.channels); size_t worst = 0;
+    for(int f = 0; f < 20; f++){
+        for(auto &v : noise) v = int16_t(rng());
+        Bytes pk; if(enc.Encode(noise.data(), n, pk)) worst = std::max(worst, pk.size());
+    }
+    std::printf("  510 kbit/s, 60 ms, white noise: largest packet %zu bytes\n", worst);
+    CHECK(worst > 0 && worst <= 1194);
+    d.maxPacketBytes = 10;  CHECK(!d.Validate());
+    d.maxPacketBytes = 1194; d.outputRate = 44100; CHECK(!d.Validate());
 }
 
 static void testConfigAndEncoder()
@@ -191,6 +206,56 @@ struct JB {
         jb->Push(d.data(), d.size());
     }
 };
+
+// adaptive playout: (1) a sender that talks 10 % of the time (DTX / push-to-talk) with a 300 ppm clock drift must not make the jitter
+// estimate climb, (2) one stray packet far away in the sequence must not flush a healthy stream, three close ones must
+static void testAdaptiveSparse()
+{
+    std::printf("JitterBuffer adaptive: sparse sender + drift, stray packet\n");
+    {
+        JB j; j.jb->SetAdaptive(true);
+        const int frames = 180000;                       // one hour of 20 ms frames
+        uint8_t tx = 0;
+        for(int f = 0; f < frames; f++){
+            const bool talking = (f % 400) < 40;         // 10 % duty
+            if(!talking) continue;
+            const int64_t arrival = int64_t(double(f) * 20000.0 * 1.0003);
+            Bytes d = VoicePacket::Wrap(uint16_t(f), (f % 400) == 0, tx++, Bytes{0x78, 1, 2, 3});
+            j.jb->Push(d.data(), d.size(), arrival);
+        }
+        std::printf("  jitter estimate after 1 h: %u us\n", j.jb->GetStats().jitterUs);
+        CHECK(j.jb->GetStats().jitterUs < 60000);       // the old per-packet leak gave ~900 ms here
+    }
+    {
+        JB j; j.jb->SetAdaptive(true);
+        uint8_t tx = 0; int64_t t = 0;
+        for(int f = 0; f < 300; f++){
+            Bytes d = VoicePacket::Wrap(uint16_t(f), f == 0, tx++, Bytes{0x78, 1, 2, 3});
+            j.jb->Push(d.data(), d.size(), t); t += 20000;
+            if(f > 10) j.jb->PopFrame();
+        }
+        const auto before = j.jb->GetStats();
+        Bytes stray = VoicePacket::Wrap(uint16_t(40000), false, 0, Bytes{0x78, 1, 2, 3});
+        j.jb->Push(stray.data(), stray.size(), t);
+        for(int f = 300; f < 400; f++){
+            Bytes d = VoicePacket::Wrap(uint16_t(f), false, tx++, Bytes{0x78, 1, 2, 3});
+            j.jb->Push(d.data(), d.size(), t); t += 20000;
+            j.jb->PopFrame();
+        }
+        CHECK(j.jb->GetStats().rebuffer == before.rebuffer);          // no resync, the stream went on
+        // a real jump without marker: 3 close packets in a row are believed
+        for(int f = 0; f < 3; f++){
+            Bytes d = VoicePacket::Wrap(uint16_t(20000 + f), false, tx++, Bytes{0x78, 1, 2, 3});
+            j.jb->Push(d.data(), d.size(), t); t += 20000;
+        }
+        CHECK(j.jb->GetStats().rebuffer == before.rebuffer + 1);
+        // a restart WITH marker is believed at once
+        Bytes m = VoicePacket::Wrap(uint16_t(5), true, 0, Bytes{0x78, 1, 2, 3});
+        const auto rb = j.jb->GetStats().rebuffer;
+        j.jb->Push(m.data(), m.size(), t);
+        CHECK(j.jb->GetStats().rebuffer >= rb);
+    }
+}
 
 // musicMode: Opus application/signal switch, channels untouched
 static void testFloatPcm()
@@ -561,6 +626,7 @@ int main()
     testPacketQueue();
     testConfigAndEncoder();
     testDatagramEstimate();
+    testAdaptiveSparse();
     testFloatPcm();
     testMusicMode();
     testDeviceSwitcher();

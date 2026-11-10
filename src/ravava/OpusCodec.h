@@ -36,6 +36,8 @@ private:
 #endif
 
     unsigned char m_encBuf[1500];   // encoder output scratch
+    opus_int32 m_maxBytes = sizeof(m_encBuf);   // hard limit for one packet (AudioConfig::maxPacketBytes): the encoder spends fewer bits to stay under it
+    uint32_t m_warnEnc = 0, m_warnDec = 0;      // rate limit for log lines from the audio thread
     Pcm m_decScratch;               // decoder output scratch (the biggest possible Opus packet)
     PcmF m_decScratchF;             // the same for DecodeFloat (allocated by InitDecoder too: no allocation on the audio thread)
     int m_lsbDepth = 16;            // what OPUS_SET_LSB_DEPTH currently says (16 for int16 input, 24 for float input)

@@ -13,6 +13,12 @@ Not yet released as a number: everything below is in 0.1.0.
 - iOS: after a phone call / Siri the audio did not come back. iOS leaves the AVAudioSession inactive after an interruption and miniaudio activates it only once (when its context is created), so the re-opened devices started but stayed silent. `platform/IosAudioSession.cpp` now activates the session when the interruption ends and before every device (re)open.
 
 ### Changed
+- **Jitter buffer (adaptive):** the baseline of the transit-time estimate leaked per *packet*; a sender that talks 10 % of the time (DTX, push-to-talk, `SetMicEnabled(false)`) with a few hundred ppm clock drift made the jitter estimate climb to the 200 ms cap (measured: 898 ms estimate after one hour at +300 ppm). It leaks per elapsed *frame* now (identical for a continuous stream).
+- **Jitter buffer:** a far-away sequence number *without* marker no longer flushes the stream at once (stray packet of an old session, streamId collision, forged datagram): three close ones in a row are needed. A packet with a marker is still believed at once (sender restart).
+- `Recorder::Start()` rebuilds the encoder from the same snapshot it uses for capture (before, the encoder came from `SetConfig()` and the rest from `Start()`: a `frameMs` changed in between made every frame fail).
+- `AudioConfig::maxPacketBytes` (default 1194): a hard limit passed to `opus_encode`, so VBR peaks / FEC / DRED cannot exceed ~1200 bytes on the wire (was only a warning). `0` = old behaviour (up to 1500).
+- `AudioConfig::Validate()` rejects an `outputRate` Opus does not support (was silently replaced by 48000); error text says `Bitrate`; `frameMs` comment lists the real values.
+- Log lines from `OpusCodec::Encode/Decode` (audio thread) are rate-limited: the first 3, then every 1024th. The jitter buffer forgets "sender uses DTX" when it resyncs to a new sender.
 - `Player` adaptive playout is now ON by default (the header and README already said so; the member initialiser was `false`). Call `SetAdaptivePlayout(false)` for the old reactive buffer.
 - **Removed** `AudioConfig::useEchoCancel`: the library never read it (echo cancellation runs when an `AudioProcessor` is attached with `SetAudioProcessor`), and with default `true` it was a trap. Keep your own flag (the Qt demo and `example/loopback` do).
 

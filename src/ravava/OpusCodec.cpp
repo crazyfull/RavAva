@@ -9,6 +9,10 @@
  */
 #include "OpusCodec.h"
 
+// Encode / Decode run on the real-time audio thread: a broken stream must not make it print (or logcat) once per packet.
+// The first 3 messages, then every 1024th.
+#define RAVAVA_WARN_LIMITED(ctr, ...) do{ if(++(ctr) <= 3 || ((ctr) & 1023) == 0) RAVAVA_WARN(__VA_ARGS__); }while(0)
+
 namespace ravava {
 
 namespace {
@@ -113,6 +117,7 @@ bool OpusCodec::InitEncoder(const AudioConfig &cfg)
     m_lsbDepth = 16;
     m_encChannels = cfg.channels;
     m_frameSamples = cfg.FrameSamples();
+    m_maxBytes = cfg.maxPacketBytes > 0 ? std::min<opus_int32>(cfg.maxPacketBytes, sizeof(m_encBuf)) : opus_int32(sizeof(m_encBuf));
 
     RAVAVA_INFO("opus_version: [%s]", opus_get_version_string());
     return true;
@@ -167,14 +172,14 @@ bool OpusCodec::Encode(const int16_t *pcm, int frameSamples, Bytes &out)
         return false;
 
     if(frameSamples != m_frameSamples){
-        RAVAVA_WARN("opus Encode: wrong frame size %d expected %d", frameSamples, m_frameSamples);
+        RAVAVA_WARN_LIMITED(m_warnEnc, "opus Encode: wrong frame size %d expected %d", frameSamples, m_frameSamples);
         return false;
     }
 
     setLsbDepth(m_pEncoder, m_lsbDepth, 16);
-    opus_int32 n = opus_encode(m_pEncoder, pcm, frameSamples, m_encBuf, sizeof(m_encBuf));
+    opus_int32 n = opus_encode(m_pEncoder, pcm, frameSamples, m_encBuf, m_maxBytes);
     if(n < 0){
-        RAVAVA_WARN("opus_encode failed: %s", opus_strerror(n));
+        RAVAVA_WARN_LIMITED(m_warnEnc, "opus_encode failed: %s", opus_strerror(n));
         return false;
     }
 
@@ -188,13 +193,13 @@ bool OpusCodec::EncodeFloat(const float *pcm, int frameSamples, Bytes &out)
     if(!m_pEncoder || !pcm)
         return false;
     if(frameSamples != m_frameSamples){
-        RAVAVA_WARN("opus EncodeFloat: wrong frame size %d expected %d", frameSamples, m_frameSamples);
+        RAVAVA_WARN_LIMITED(m_warnEnc, "opus EncodeFloat: wrong frame size %d expected %d", frameSamples, m_frameSamples);
         return false;
     }
     setLsbDepth(m_pEncoder, m_lsbDepth, 24);
-    const opus_int32 n = opus_encode_float(m_pEncoder, pcm, frameSamples, m_encBuf, sizeof(m_encBuf));
+    const opus_int32 n = opus_encode_float(m_pEncoder, pcm, frameSamples, m_encBuf, m_maxBytes);
     if(n < 0){
-        RAVAVA_WARN("opus_encode_float failed: %s", opus_strerror(n));
+        RAVAVA_WARN_LIMITED(m_warnEnc, "opus_encode_float failed: %s", opus_strerror(n));
         return false;
     }
     out.assign(m_encBuf, m_encBuf + n);
@@ -208,7 +213,7 @@ bool OpusCodec::DecodeFloat(const uint8_t *packet, size_t size, PcmF &out)
         return false;
     const int samples = opus_decode_float(m_pDecoder, packet, int(size), m_decScratchF.data(), MAX_SAMPLES, 0);
     if(samples < 0){
-        RAVAVA_WARN("opus_decode_float failed: %s", opus_strerror(samples));
+        RAVAVA_WARN_LIMITED(m_warnDec, "opus_decode_float failed: %s", opus_strerror(samples));
         return false;
     }
     out.assign(m_decScratchF.begin(), m_decScratchF.begin() + size_t(samples) * m_decChannels);
@@ -235,7 +240,7 @@ bool OpusCodec::Decode(const uint8_t *packet, size_t size, Pcm &out)
 
     int samples = opus_decode(m_pDecoder, packet, int(size), m_decScratch.data(), MAX_SAMPLES, 0);
     if(samples < 0){
-        RAVAVA_WARN("opus_decode failed: %s", opus_strerror(samples));
+        RAVAVA_WARN_LIMITED(m_warnDec, "opus_decode failed: %s", opus_strerror(samples));
         return false;
     }
 
@@ -263,7 +268,7 @@ bool OpusCodec::DecodeFec(const uint8_t *nextPacket, size_t size, int frameSampl
 
     int samples = opus_decode(m_pDecoder, nextPacket, int(size), m_decScratch.data(), frameSamples, 1);
     if(samples < 0){
-        RAVAVA_WARN("opus_decode(fec) failed: %s", opus_strerror(samples));
+        RAVAVA_WARN_LIMITED(m_warnDec, "opus_decode(fec) failed: %s", opus_strerror(samples));
         return DecodePlc(frameSamples, out);
     }
 
@@ -286,7 +291,7 @@ bool OpusCodec::DecodePlc(int frameSamples, Pcm &out)
 
     int samples = opus_decode(m_pDecoder, nullptr, 0, m_decScratch.data(), frameSamples, 0);
     if(samples < 0){
-        RAVAVA_WARN("opus_decode(plc) failed: %s", opus_strerror(samples));
+        RAVAVA_WARN_LIMITED(m_warnDec, "opus_decode(plc) failed: %s", opus_strerror(samples));
         return false;
     }
 

@@ -175,6 +175,9 @@ private:
     int m_envShift = 8;                         // the peak falls by 1/2^shift of the gap per packet (~15 s)
     bool m_trInit = false;
     int m_trN = 0;                              // samples seen
+    int64_t m_trLastExt = 0;                    // highest sequence seen by trackArrival(): the baseline leaks per elapsed FRAME, not per packet (DTX / push-to-talk send sparsely)
+    uint16_t m_candSeq = 0;                     // a far-away sequence number that is not (yet) believed: 3 close ones in a row are needed to resync
+    int m_candN = 0;
     int64_t m_trBase = 0;                       // smallest transit time lately (arrival - sequence * frame time)
     int64_t m_env = 0;                          // peak of (transit - base), us
     int m_jitFrames = 0;
