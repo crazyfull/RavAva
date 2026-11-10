@@ -108,10 +108,10 @@ jobs:
             cp -R "$WEBRTC_ROOT/licenses/." RavAva-iOS/licenses/
             ls RavAva-iOS/licenses/webrtc-audio-processing | grep -qi 'abseil' || { echo "::error::no abseil license in the package"; exit 1; }
           fi
-          for f in opus/COPYING THIRD_PARTY_NOTICES.md ravava/LICENSE; do [ -s RavAva-iOS/licenses/$f ] || { echo "::error::missing license file $f"; exit 1; }; done
-          find RavAva-iOS/licenses -type f | sort
           cp THIRD_PARTY_NOTICES.md RavAva-iOS/licenses/THIRD_PARTY_NOTICES.md
           cp LICENSE RavAva-iOS/licenses/ravava/LICENSE
+          for f in opus/COPYING THIRD_PARTY_NOTICES.md ravava/LICENSE; do [ -s RavAva-iOS/licenses/$f ] || { echo "::error::missing license file $f"; exit 1; }; done
+          find RavAva-iOS/licenses -type f | sort
           cp example/IOS.md RavAva-iOS/README.md
           lipo -info RavAva-iOS/lib/libRavAva.a
           vtool -show-build RavAva-iOS/lib/libRavAva.a | head -12 || true
