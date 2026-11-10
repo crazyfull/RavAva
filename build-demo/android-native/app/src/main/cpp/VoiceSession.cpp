@@ -62,7 +62,7 @@ bool VoiceSession::Start(const SessionSettings &s)
     cfg_.useDtx     = s.dtx;
     cfg_.musicMode  = s.musicMode;
     cfg_.playMusic  = false;            // the music buttons mix the file into the stream at run time
-    cfg_.useEchoCancel = s.echo != 0;
+    useEcho_ = s.echo != 0;
     cfg_.aecNearendProtection = s.echo;
     cfg_.noiseSuppression = s.noise;
     cfg_.autoGain   = s.agc;
@@ -114,7 +114,7 @@ bool VoiceSession::Start(const SessionSettings &s)
     play_->SetMusicMonitor(rec_->Music());
 
     aec_.reset();
-    const bool wantAec = cfg_.useEchoCancel;
+    const bool wantAec = useEcho_;
     if (AudioProcessor::IsAvailable() && (wantAec || cfg_.noiseSuppression > 0 || cfg_.autoGain || cfg_.highPassFilter)) {
         auto aec = std::make_shared<AudioProcessor>();
         AudioProcessor::Options opt;
@@ -290,7 +290,7 @@ void VoiceSession::buildStats()
         if (st.formatDropped) { std::snprintf(line, sizeof(line), "   not playable / other format %u", st.formatDropped); text += line; }
 
         AudioProcessor::Stats as;
-        if (cfg_.useEchoCancel && aec_ && aec_->GetStats(as)) {
+        if (useEcho_ && aec_ && aec_->GetStats(as)) {
             if (as.hasDelay) std::snprintf(line, sizeof(line), "\nEcho     : cancelling, estimated echo delay %d ms", as.delayMs);
             else std::snprintf(line, sizeof(line), "\nEcho     : cancelling (still measuring the delay)");
             text += line;

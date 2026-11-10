@@ -87,6 +87,7 @@ private:
     void sendToNetwork(const ravava::Bytes &body);
 
     ravava::AudioConfig cfg_;
+    bool useEcho_ = false;                  // echo cancellation chosen in the UI (runs when an AudioProcessor is attached)
     std::shared_ptr<ravava::AudioProcessor> aec_;
     std::unique_ptr<ravava::Recorder> rec_;
     std::unique_ptr<ravava::ConferencePlayer> play_;
