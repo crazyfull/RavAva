@@ -111,6 +111,33 @@ static void testPacketQueue()
 }
 
 // ---------------------------------------------------------------------------------------------
+// MaxDatagramEstimate: worst case = 2 x mean payload (+ DRED) + 3 audio header + 3 envelope, warning above 1200 bytes
+static void testDatagramEstimate()
+{
+    std::printf("AudioConfig::MaxDatagramEstimate\n");
+    AudioConfig c; c.Bitrate = 16000; c.frameMs = 20; c.dredMs = 0;
+    CHECK(c.MaxDatagramEstimate() == 40 * 2 + 6);                 // mean 40 bytes
+    // boundary: the largest 20 ms bitrate that stays under the limit, and the next step over it
+    c.frameMs = 20;
+    c.Bitrate = 236000;                                           // mean 590 -> 1180 + 6 = 1186 <= 1200
+    CHECK(c.MaxDatagramEstimate() <= AudioConfig::MaxDatagramWarnBytes);
+    c.Bitrate = 240000;                                           // mean 600 -> 1206 > 1200
+    CHECK(c.MaxDatagramEstimate() > AudioConfig::MaxDatagramWarnBytes);
+    // a long frame at a modest bitrate is just as big: 60 ms x 64 kbit/s = 480 mean
+    c.Bitrate = 64000; c.frameMs = 60; c.dredMs = 0;
+    CHECK(c.MaxDatagramEstimate() == 480 * 2 + 6);
+    // DRED adds to it: the same config that fit without DRED can go over with it
+    c.Bitrate = 128000; c.frameMs = 40; c.dredMs = 0;             // mean 640 -> 1286 (already over)
+    CHECK(c.MaxDatagramEstimate() > AudioConfig::MaxDatagramWarnBytes);
+    c.Bitrate = 64000; c.frameMs = 40; c.dredMs = 0;              // mean 320 -> 646
+    const int without = c.MaxDatagramEstimate();
+    CHECK(without < AudioConfig::MaxDatagramWarnBytes);
+    c.dredMs = 1000;                                              // + 320 * 1000 / 200 = 1600
+    CHECK(c.MaxDatagramEstimate() == without + 1600);
+    CHECK(c.MaxDatagramEstimate() > AudioConfig::MaxDatagramWarnBytes);
+    CHECK(AudioConfig().MaxDatagramEstimate() < AudioConfig::MaxDatagramWarnBytes);   // the defaults are fine
+}
+
 static void testConfigAndEncoder()
 {
     std::printf("AudioConfig::Validate / opus encoder\n");
@@ -533,6 +560,7 @@ int main()
     testCutBlocks();
     testPacketQueue();
     testConfigAndEncoder();
+    testDatagramEstimate();
     testFloatPcm();
     testMusicMode();
     testDeviceSwitcher();

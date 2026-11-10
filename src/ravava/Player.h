@@ -49,7 +49,7 @@ public:
 // for the network/GUI thread (no lock shared with Play()), and Play() never waits for a decode.
 class Player
 {
-    AudioConfig *m_pConfig;
+    AudioConfig *m_pConfig;           // only read inside SetConfig() (init(), on the caller's thread) and for a null check; the caller's AudioConfig may go away after SetConfig() returns
 
     // Decoder + jitter buffer for ONE stream format (= frame duration). Built on the network thread when a packet with a
     // new duration shows up, handed to the audio thread through m_next, and the audio thread hands the old one

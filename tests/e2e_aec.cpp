@@ -41,7 +41,6 @@ static std::pair<double,double> run(bool withAec, int *outLostPackets)
 
     AudioConfig cfg;
     cfg.frameMs = 20; cfg.Bitrate = 24000; cfg.expectedLossPerc = 0; cfg.useDtx = false;
-    cfg.useEchoCancel = withAec;
 
     auto rec  = std::make_unique<Recorder>();
     auto play = std::make_unique<Player>();

@@ -93,7 +93,7 @@ int main(int argc, char **argv)
     cfg.maxBandwidth = 1105;                    // OPUS_BANDWIDTH_FULLBAND
     cfg.Bitrate = 64000;
     cfg.frameMs = 20;
-    cfg.useEchoCancel = false;
+    bool useEchoCancel = false;                 // (our own flag: AudioConfig::useEchoCancel is deprecated, AEC runs when an AudioProcessor is attached)
     cfg.expectedLossPerc = 0;
 
     int inIndex = -1, outIndex = -1, gain = 100, volume = 100, seconds = 0, echo = 0;
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
     }
     if(lossPct > 0)
         cfg.expectedLossPerc = int(lossPct + 0.5) < 5 ? 5 : int(lossPct + 0.5);   // tell the encoder to spend FEC on it
-    cfg.useEchoCancel = echo > 0;
+    useEchoCancel = echo > 0;
     cfg.aecNearendProtection = echo > 0 ? echo - 1 : 0;
 
     std::string err;
@@ -149,7 +149,7 @@ int main(int argc, char **argv)
 
     // ONE echo canceller shared by the recorder and the player (before SetConfig: that opens the speaker)
     std::shared_ptr<AudioProcessor> aec;
-    if(cfg.useEchoCancel || cfg.noiseSuppression > 0 || cfg.autoGain || cfg.highPassFilter){
+    if(useEchoCancel || cfg.noiseSuppression > 0 || cfg.autoGain || cfg.highPassFilter){
         if(!AudioProcessor::IsAvailable()){
             std::fprintf(stderr, "note: this build has no webrtc-audio-processing: --echo / --ns / --agc are ignored\n");
         }else{
@@ -157,10 +157,10 @@ int main(int argc, char **argv)
             AudioProcessor::Options opt;
             opt.streamDelayMs = cfg.aecDelayMs;
             opt.nearendProtection = cfg.aecNearendProtection;
-            opt.echoCancel = cfg.useEchoCancel;
+            opt.echoCancel = useEchoCancel;
             opt.noiseSuppression = cfg.noiseSuppression;
             opt.autoGain = cfg.autoGain;
-            opt.highPassFilter = cfg.highPassFilter || cfg.useEchoCancel;     // (the echo canceller always had it)
+            opt.highPassFilter = cfg.highPassFilter || useEchoCancel;     // (the echo canceller always had it)
             if(!aec->Init(cfg.inputRate, cfg.RenderRate(), cfg.channels, opt, &err)){
                 std::fprintf(stderr, "echo canceller disabled: %s\n", err.c_str());
                 aec.reset();
@@ -195,7 +195,7 @@ int main(int argc, char **argv)
 
     std::printf("loopback: 48000 Hz mono fullband, Opus %d bps, %d ms frames%s%s%s, loss %.1f%%%s\n",
                 cfg.Bitrate, cfg.frameMs, cfg.musicMode ? ", music mode" : "", cfg.useDtx ? ", DTX" : "",
-                cfg.useFec ? ", FEC" : "", lossPct, aec ? (cfg.useEchoCancel ? ", echo cancellation on" : ", webrtc processing on") : "");
+                cfg.useFec ? ", FEC" : "", lossPct, aec ? (useEchoCancel ? ", echo cancellation on" : ", webrtc processing on") : "");
     if(!aec)
         std::printf("use headphones, the speaker would howl into the microphone.   Ctrl+C stops.\n");
     else

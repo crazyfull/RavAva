@@ -8,6 +8,7 @@
 #         optional: IOS_MIN (default 14.0)
 # Needs: a Mac (macOS runner), Xcode, meson + ninja (brew install meson ninja), internet (meson downloads abseil).
 set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SRC="$(cd "${1:?webrtc-audio-processing source dir}" && pwd)"
 SDK="${2:-iphoneos}"
@@ -70,6 +71,7 @@ ABSL="$(find "$SRC/subprojects" -maxdepth 1 -type d -name 'abseil-cpp-*' | head 
 [ -n "$ABSL" ] || { echo "[error] abseil sources not found under $SRC/subprojects"; exit 1; }
 (cd "$ABSL" && find absl \( -name '*.h' -o -name '*.inc' \) | while read -r h; do mkdir -p "$OUT/include/$(dirname "$h")"; cp "$h" "$OUT/include/$h"; done)
 
+"$HERE/../collect_licenses.sh" "$SRC" "$OUT/licenses" webrtc-audio-processing
 rm -rf "$WORK"
 echo "Done: $OUT"
 lipo -info "$OUT/lib/libwebrtc-audio-processing-1.a"

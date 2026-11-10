@@ -67,7 +67,9 @@ struct AudioConfig
                                 //Bluetooth microphone (Bluetooth headphones play as "high quality" media, the phone's microphone is used).
 
     // ---- echo cancellation (webrtc-audio-processing, see AudioProcessor.h) ----
-    bool useEchoCancel = true;  //HINT ONLY: the library itself never reads it. Echo cancellation runs only when you attach an AudioProcessor; use this flag to decide that in your app
+    // DEPRECATED, never read by the library (a [[deprecated]] attribute would warn on every implicit copy of AudioConfig): echo
+    // cancellation runs when an AudioProcessor is attached (SetAudioProcessor). Keep your own flag; the field is removed in a later version.
+    bool useEchoCancel = true;
     int aecNearendProtection = 0; //0..3: higher = own voice is cut less during double talk (a bit more echo may pass)
     int noiseSuppression = 0;   //0 = off, 1..4 = low .. very high (webrtc noise suppression on the mic)
     bool autoGain = false;      //webrtc AGC2: automatic mic level + limiter
@@ -110,6 +112,18 @@ struct AudioConfig
             return fail("maxBandwidth (1101..1105)", maxBandwidth);
         return true;
     }
+
+    // Worst-case size (bytes) of one datagram this config can produce, on the wire: Opus payload at twice the mean (VBR peaks,
+    // in-band FEC), + dredMs of redundancy (a conservative guess: half the mean per 100 ms; measure with your libopus 1.5), + the 3-byte
+    // audio header and the optional 3-byte network envelope. The constructor of the encoder warns above MaxDatagramWarnBytes.
+    int MaxDatagramEstimate() const {
+        const long mean = long(Bitrate) / 8 * frameMs / 1000;
+        long peak = mean * 2;
+        if(dredMs > 0)
+            peak += mean * dredMs / 200;
+        return int(peak + 3 + 3);
+    }
+    static constexpr int MaxDatagramWarnBytes = 1200;   // IPv6 minimum MTU 1280 - IP/UDP headers 48 - a margin
 
     int FrameSamples() const {
         return inputRate * frameMs / 1000; //per channel

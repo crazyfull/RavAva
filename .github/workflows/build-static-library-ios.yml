@@ -100,6 +100,12 @@ jobs:
           [ -n "$WEBRTC_ROOT" ] && EXTRA=("$WEBRTC_ROOT/lib/libwebrtc-audio-processing-1.a")
           libtool -static -o RavAva-iOS/lib/libRavAva.a "ravava-$sdk/lib/libRavAva.a" "opus-$sdk/lib/libopus.a" ${EXTRA[@]+"${EXTRA[@]}"}
           cp -R "ravava-$sdk/include" RavAva-iOS/include
+          # license texts travel with the binary (Opus / webrtc: BSD-3-Clause, abseil: Apache-2.0)
+          mkdir -p RavAva-iOS/licenses/opus RavAva-iOS/licenses/ravava
+          cp "opus-${OPUS_VERSION}/COPYING" RavAva-iOS/licenses/opus/COPYING
+          [ -n "$WEBRTC_ROOT" ] && [ -d "$WEBRTC_ROOT/licenses" ] && cp -R "$WEBRTC_ROOT/licenses/." RavAva-iOS/licenses/
+          cp THIRD_PARTY_NOTICES.md RavAva-iOS/licenses/THIRD_PARTY_NOTICES.md
+          cp LICENSE RavAva-iOS/licenses/ravava/LICENSE
           cp example/IOS.md RavAva-iOS/README.md
           lipo -info RavAva-iOS/lib/libRavAva.a
           vtool -show-build RavAva-iOS/lib/libRavAva.a | head -12 || true
@@ -144,6 +150,7 @@ jobs:
               -library slice-iphonesimulator/lib/libRavAva.a -headers slice-iphonesimulator/include \
               -output RavAva-iOS-static/RavAva.xcframework
           cp example/IOS.md RavAva-iOS-static/README.md
+          cp -R slice-iphoneos/licenses RavAva-iOS-static/licenses
           find RavAva-iOS-static -maxdepth 3 | sort
           cat RavAva-iOS-static/RavAva.xcframework/Info.plist | head -40
 

@@ -8,6 +8,7 @@
 #         abi: arm64-v8a | armeabi-v7a | x86_64 | x86          optional: ANDROID_API (default 28)
 # Needs: meson + ninja (pip install meson ninja), internet (meson downloads abseil), a Linux host.
 set -euo pipefail
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SRC="$(realpath "${1:?webrtc-audio-processing source dir}")"
 ABI="${2:?abi}"
@@ -76,6 +77,7 @@ ABSL="$(find "$SRC/subprojects" -maxdepth 1 -type d -name 'abseil-cpp-*' | head 
 [ -n "$ABSL" ] || { echo "[error] abseil sources not found under $SRC/subprojects"; exit 1; }
 (cd "$ABSL" && find absl \( -name '*.h' -o -name '*.inc' \) -print0 | xargs -0 -I{} install -D -m 0644 {} "$OUT/include/{}")
 
+"$HERE/../collect_licenses.sh" "$SRC" "$OUT/licenses" webrtc-audio-processing
 rm -rf "$WORK"
 echo "Done: $OUT"
 ls -l "$OUT/lib"

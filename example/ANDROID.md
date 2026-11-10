@@ -86,3 +86,9 @@ One job per ABI: Opus 1.5.2 and (not on the 32-bit ABIs) webrtc-audio-processing
 with the NDK, RavAva is built with CMake (`src/ravava`), the three archives are merged with `llvm-ar`, a small program is linked
 against the result, and a last job collects every ABI into `RavAva-Android-static`. If the webrtc step of an ABI fails, that ABI
 is built without echo cancellation and the workflow shows a warning (`BUILD-INFO.txt` says which).
+
+## Licenses
+
+`licenses/` next to `lib/` and `include/` holds the license texts of everything inside `libRavAva.a` (Opus, webrtc-audio-processing,
+abseil, …) and `THIRD_PARTY_NOTICES.md`. An app that ships this library must show / include them (BSD-3-Clause and Apache-2.0
+require the text to travel with the binary), e.g. in an in-app "Open source licenses" screen.
