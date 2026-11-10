@@ -79,6 +79,9 @@ bool OpusCodec::InitEncoder(const AudioConfig &cfg)
         return false;
     }
 
+    if(cfg.MaxReachableBitrate() > 0 && cfg.Bitrate > cfg.MaxReachableBitrate())
+        RAVAVA_WARN("Bitrate %d bps cannot be reached with frameMs %d and maxPacketBytes %d: the encoder will deliver at most ~%d bps (use a shorter frame, a larger maxPacketBytes or maxPacketBytes = 0)",
+                    cfg.Bitrate, cfg.frameMs, cfg.maxPacketBytes, cfg.MaxReachableBitrate());
     // a datagram bigger than the path MTU is fragmented by IP and then lost as a whole: warn early
     if(cfg.MaxDatagramEstimate() > AudioConfig::MaxDatagramWarnBytes)
         RAVAVA_WARN("Bitrate %d bps, frameMs %d, dredMs %d: datagrams can reach ~%d bytes (> %d): they may be fragmented or dropped on the network path",

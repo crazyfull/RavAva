@@ -149,6 +149,10 @@ static void testDatagramEstimate()
     }
     std::printf("  510 kbit/s, 60 ms, white noise: largest packet %zu bytes\n", worst);
     CHECK(worst > 0 && worst <= 1194);
+    // 510 kbit/s cannot be reached with 1194 bytes per 60 ms (~159 kbit/s): the config says so (the encoder warns)
+    CHECK(d.MaxReachableBitrate() == 1194 * 8 * 1000 / 60);
+    d.maxPacketBytes = 0; CHECK(d.MaxReachableBitrate() == 0); d.maxPacketBytes = 1194;
+    AudioConfig sp; CHECK(sp.Bitrate <= sp.MaxReachableBitrate());      // the defaults are reachable
     d.maxPacketBytes = 10;  CHECK(!d.Validate());
     d.maxPacketBytes = 1194; d.outputRate = 44100; CHECK(!d.Validate());
 }
@@ -249,11 +253,22 @@ static void testAdaptiveSparse()
             j.jb->Push(d.data(), d.size(), t); t += 20000;
         }
         CHECK(j.jb->GetStats().rebuffer == before.rebuffer + 1);
-        // a restart WITH marker is believed at once
-        Bytes m = VoicePacket::Wrap(uint16_t(5), true, 0, Bytes{0x78, 1, 2, 3});
+    }
+    {   // a lone packet WITH a marker far away is not believed either; the marker + one close follower is (sender restart)
+        JB j; j.jb->SetAdaptive(true);
+        uint8_t tx = 0; int64_t t = 0;
+        for(int f = 0; f < 300; f++){
+            Bytes d = VoicePacket::Wrap(uint16_t(f), f == 0, tx++, Bytes{0x78, 1, 2, 3});
+            j.jb->Push(d.data(), d.size(), t); t += 20000;
+            if(f > 10) j.jb->PopFrame();
+        }
         const auto rb = j.jb->GetStats().rebuffer;
-        j.jb->Push(m.data(), m.size(), t);
-        CHECK(j.jb->GetStats().rebuffer >= rb);
+        Bytes m1 = VoicePacket::Wrap(uint16_t(45000), true, 0, Bytes{0x78, 1, 2, 3});
+        j.jb->Push(m1.data(), m1.size(), t); t += 20000;
+        CHECK(j.jb->GetStats().rebuffer == rb);
+        Bytes m2 = VoicePacket::Wrap(uint16_t(45001), false, 0, Bytes{0x78, 1, 2, 3});
+        j.jb->Push(m2.data(), m2.size(), t);
+        CHECK(j.jb->GetStats().rebuffer == rb + 1);
     }
 }
 

@@ -276,18 +276,23 @@ void JitterBuffer::pushImpl(const uint8_t *datagram, size_t size, int64_t arriva
         // a restart at seq 0 would be "too late" until the old sequence number is reached again (minutes of silence).
         // A far-away number WITHOUT a marker (a stray packet of an old session, a streamId collision, a forged datagram) is not
         // believed until 3 close ones follow each other: one outlier must not flush a healthy stream.
-        bool restart = marker && int(diff) < -(int(m_maxTarget) + 16);
-        if(std::abs(int(diff)) > 3000){
-            if(marker){
-                restart = true;
+        bool restart = false;
+        const bool beyond = std::abs(int(diff)) > 3000 || int(diff) < -(int(m_maxTarget) + 16);     // outside anything reordering explains
+        const int16_t near = int16_t(uint16_t(seq - m_candSeq));
+        const bool follows = m_candN > 0 && beyond && near >= 1 && near <= 16;                         // the next packet of the chain we wait for
+        if(follows || std::abs(int(diff)) > 3000 || (marker && int(diff) < -(int(m_maxTarget) + 16))){
+            // a chain that starts with a marker (talkspurt start / sender restart) needs ONE close follower, an unmarked one two: a lone
+            // stray packet (old session, streamId collision, forged) must not flush a healthy stream, with or without a marker
+            if(follows){
+                m_candN++;
             }else{
-                const int16_t near = int16_t(uint16_t(seq - m_candSeq));
-                m_candN = (m_candN > 0 && near >= 1 && near <= 16) ? m_candN + 1 : 1;
-                m_candSeq = seq;
-                if(m_candN < 3)
-                    return;                         // ignored
-                restart = true;
+                m_candN = 1;
+                m_candMarker = marker;
             }
+            m_candSeq = seq;
+            if(m_candN < (m_candMarker ? 2 : 3))
+                return;                             // ignored
+            restart = true;
         }else{
             m_candN = 0;
         }
@@ -297,6 +302,7 @@ void JitterBuffer::pushImpl(const uint8_t *datagram, size_t size, int64_t arriva
             clearPackets();
             seenReset();
             m_lastTx = tx;
+            marker = marker || m_candMarker;    // the follower of a marker packet opens the new stream (talkspurt start) in its place
             if(m_playing)
                 m_stats.rebuffer++;
             m_playing = false;

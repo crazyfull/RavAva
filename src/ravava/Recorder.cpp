@@ -43,10 +43,14 @@ void Recorder::SetConfig(AudioConfig *pConfig)
 {
     m_pConfig = pConfig;
     if(pConfig){
-        m_cfg = *pConfig;                   // (Start() takes the snapshot again and rebuilds the encoder from it)
-        if(!m_deviceWanted && !m_input.IsRunning())
+        // m_cfg is read by the audio thread while recording: touch it only when nothing runs (Start() takes the snapshot anyway)
+        if(!m_deviceWanted && !m_input.IsRunning()){
+            m_cfg = *pConfig;
             m_pOpus.reset();                // a second SetConfig() with other settings rebuilds the encoder
-        SetAndroidCallMode(m_cfg.androidCallMode);
+        }else{
+            RAVAVA_WARN("Recorder::SetConfig() while recording: the new settings are used from the next Start()");
+        }
+        SetAndroidCallMode(pConfig->androidCallMode);
     }
     init();
 }

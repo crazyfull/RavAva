@@ -115,6 +115,7 @@ public:
     void SetInputGain(int percent) { m_inputGain.Set(percent); }
     int  GetInputGain() const { return m_inputGain.Get(); }
     static int MaxInputGain() { return 200; }
+    // Rebuilds the Opus encoder from the config snapshot: every Start() begins with a fresh encoder state (bitrate / DTX / FEC adaptation starts over, the first frames can be a little worse).
     void Start();
     void Stop();
     // playMusic (config) mode only: why the music file could not be opened / decoded ("" = fine), and whether it was played to the end.
