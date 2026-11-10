@@ -7,6 +7,7 @@ Not yet released as a number: everything below is in 0.1.0.
 ## 0.1.0 (in development)
 
 ### Fixed
+- iOS: after a call / Siri / alarm the devices are now restarted by the `interruption ended` notification itself (session re-activated, then `ma_device_start` for the devices that were started and not stopped by the app), no longer only by the watchdog threads (they are frozen while the app is in the background during a call and the library log showed no recovery at all). The log line `... device restarted after the interruption: ok` shows it.
 - `ConferencePlayer` copies the `AudioConfig` in `SetConfig()`: new talkers are built later (from `Play()`), when the caller's config may already be gone. (`Recorder::Start()` and `Player::SetConfig()` already copied / read it synchronously.)
 - MTU warning now uses `AudioConfig::MaxDatagramEstimate()`: 2 x mean payload (VBR peaks, FEC) + DRED allowance + 3-byte audio header + 3-byte envelope, threshold 1200 bytes.
 - CI packages `RavAva-iOS-static` and `RavAva-Android-static` now contain `licenses/` (Opus, webrtc-audio-processing, abseil and other dependency license texts copied from the compiled sources, `THIRD_PARTY_NOTICES.md`, RavAva `LICENSE`).

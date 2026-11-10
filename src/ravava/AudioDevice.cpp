@@ -38,6 +38,7 @@
 #include <thread>
 #include <vector>
 #include <mutex>
+#include <set>
 #include <cstring>
 #include <cstdio>
 
@@ -62,13 +63,36 @@ struct OsInterruptedFlag {
 };
 static const OsInterruptedFlag g_osInterrupted;
 
+#ifdef RAVAVA_IOS
+// iOS stops our devices when a call / Siri / an alarm takes the audio, and never starts them again by itself. The devices that are
+// wanted (started and not stopped by us) are listed here, so the 'interruption ended' notification (main thread, comes by itself, no
+// watchdog needed - the watchdog threads may be frozen while the app is in the background during a call) can restart exactly them.
+static std::mutex g_iosDevMx;
+static std::set<ma_device*> g_iosDevs;
+static void iosRegister(ma_device *dev)   { std::lock_guard<std::mutex> lk(g_iosDevMx); g_iosDevs.insert(dev); }
+static void iosUnregister(ma_device *dev) { std::lock_guard<std::mutex> lk(g_iosDevMx); g_iosDevs.erase(dev); }
+static void iosRestartAfterInterruption(ma_device *dev)
+{
+    ios::ActivateAudioSession();        // iOS leaves the session inactive after a call: without this the devices stay silent
+    std::lock_guard<std::mutex> lk(g_iosDevMx);      // (Stop() unregisters first: a device that is being torn down is never started here)
+    if(!g_iosDevs.count(dev) || ma_device_get_state(dev) != ma_device_state_stopped)
+        return;
+    const ma_result r = ma_device_start(dev);
+    RAVAVA_INFO("%s device restarted after the interruption: %s", dev->type == ma_device_type_capture ? "capture" : "playback",
+                r == MA_SUCCESS ? "ok" : ma_result_description(r));
+}
+#else
+static void iosRegister(ma_device *) {}
+static void iosUnregister(ma_device *) {}
+#endif
+
 static void onNotification(const ma_device_notification *n)
 {
     if(n->type == ma_device_notification_type_interruption_began){ g_osInterruptedSince = steadyMs(); g_osInterruptedRaw = true; }
     else if(n->type == ma_device_notification_type_interruption_ended){
         g_osInterruptedRaw = false;
 #ifdef RAVAVA_IOS
-        ios::ActivateAudioSession();    // iOS leaves the session inactive after a call: without this the re-opened devices stay silent
+        iosRestartAfterInterruption(n->pDevice);    // (activates the session, then starts the devices the OS stopped)
 #endif
     }
     static const char *names[] = {"started", "stopped", "rerouted", "interruption began", "interruption ended", "unlocked"};
@@ -399,6 +423,7 @@ bool AudioInput::Start(int sampleRate, int channels, int periodMs, Callback cb, 
         return false;
     }
     RAVAVA_INFO("capture: opened in %d ms (route setup %d ms)", sinceMs(), prepareMs);
+    iosRegister(&d->dev);
     d->running = true;
     return true;
 }
@@ -406,6 +431,7 @@ bool AudioInput::Start(int sampleRate, int channels, int periodMs, Callback cb, 
 void AudioInput::Stop()
 {
     if(d->opened){
+        iosUnregister(&d->dev);
         {
             std::lock_guard<std::mutex> lk(g_deviceMutex);
             ma_device_uninit(&d->dev);  // stops the device and waits for the callback
@@ -673,6 +699,7 @@ bool AudioOutput::Start(int sampleRate, int channels, int periodMs, Callback cb,
         return false;
     }
     RAVAVA_INFO("playback: opened in %d ms (route setup %d ms)", sinceMs(), prepareMs);
+    iosRegister(&d->dev);
     d->running = true;
     return true;
 }
@@ -680,6 +707,7 @@ bool AudioOutput::Start(int sampleRate, int channels, int periodMs, Callback cb,
 void AudioOutput::Stop()
 {
     if(d->opened){
+        iosUnregister(&d->dev);
         {
             std::lock_guard<std::mutex> lk(g_deviceMutex);
             ma_device_uninit(&d->dev);
