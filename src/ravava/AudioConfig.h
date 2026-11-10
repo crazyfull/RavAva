@@ -128,6 +128,11 @@ struct AudioConfig
             peak = maxPacketBytes;                  // the encoder is told to stay under it
         return int(peak + 3 + 3);
     }
+    // The highest bitrate (bit/s) the encoder can really deliver under maxPacketBytes with this frameMs (payload limit, no VBR peak
+    // allowance); a Bitrate above it is silently reduced by Opus. 0 = no limit.
+    int MaxReachableBitrate() const {
+        return maxPacketBytes > 0 ? int(long(maxPacketBytes) * 8 * 1000 / frameMs) : 0;
+    }
     static constexpr int MaxDatagramWarnBytes = 1200;   // IPv6 minimum MTU 1280 - IP/UDP headers 48 - a margin
 
     int FrameSamples() const {

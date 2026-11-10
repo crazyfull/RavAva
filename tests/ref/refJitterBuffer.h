@@ -49,6 +49,7 @@ private:
     int m_channels;
     int m_frameSamples;
 
+    uint16_t m_candSeq = 0; int m_candN = 0; bool m_candMarker = false;   // far-away sequence confirmation (as in JitterBuffer)
     std::set<int64_t> m_seen;         // recently received sequence numbers
     uint8_t m_lastTx;                 // tx counter of the newest packet
     bool m_dtxSeen;                   // the sender skips silent frames (DTX): sequence gaps are then NOT losses

@@ -41,10 +41,31 @@ void RefJitterBuffer::Push(const uint8_t *datagram, size_t size)
     }else{
         int16_t diff = int16_t(uint16_t(seq - uint16_t(m_highest & 0xFFFF)));
         ext = m_highest + diff;
-        if(std::abs(int(diff)) > 3000){      // sender restarted / huge jump: resync
+        bool restart = false;
+        const bool beyond = std::abs(int(diff)) > 3000 || int(diff) < -(int(m_maxTarget) + 16);
+        const int16_t near = int16_t(uint16_t(seq - m_candSeq));
+        const bool follows = m_candN > 0 && beyond && near >= 1 && near <= 16;
+        if(follows || std::abs(int(diff)) > 3000 || (marker && int(diff) < -(int(m_maxTarget) + 16))){
+            // same rule as JitterBuffer: a far-away number needs one close follower when it starts with a marker, two otherwise
+            if(follows){
+                m_candN++;
+            }else{
+                m_candN = 1;
+                m_candMarker = marker;
+            }
+            m_candSeq = seq;
+            if(m_candN < (m_candMarker ? 2 : 3))
+                return;
+            restart = true;
+        }else{
+            m_candN = 0;
+        }
+        if(restart){                         // sender restarted / huge jump: resync
+            m_candN = 0;
             m_buf.clear();
             m_seen.clear();
             m_lastTx = tx;
+            marker = marker || m_candMarker;
             m_playing = false;
             m_plcRun = 0;
             ext = seq;

@@ -492,7 +492,7 @@ meant for a 1 Hz timer: loss = `stats.lost`, recovered = `stats.fec + stats.plc 
 | `inputRate` / `outputRate` | 48000 | 8000 / 12000 / 16000 / 24000 / 48000. Prefer 48000 for fullband |
 | `channels` | 1 | 1 (mono) or 2 (stereo) |
 | `frameMs` | 20 | 5, 10, 20, 40, 60, 80, 100, 120 (longer = less overhead, more latency) |
-| `maxPacketBytes` | 1194 | hard limit for the Opus payload of one packet (+6 bytes of headers = 1200 on the wire, under the IPv6 minimum MTU). The encoder spends fewer bits to stay under it, so VBR peaks, FEC and DRED cannot cause IP fragmentation. `0` = no limit (up to 1500; the library then only warns). |
+| `maxPacketBytes` | 1194 | hard limit for the Opus payload of one packet (+6 bytes of headers = 1200 on the wire, under the IPv6 minimum MTU). The encoder spends fewer bits to stay under it, so VBR peaks, FEC and DRED cannot cause IP fragmentation. `0` = no limit (up to 1500; the library then only warns). A `Bitrate` above `maxPacketBytes × 8 / frameMs` cannot be reached (e.g. 512 kbit/s with 60 ms frames is capped near 159 kbit/s): the encoder logs a warning and `MaxReachableBitrate()` tells the value. |
 | `Bitrate` | 8000 | bit/s, 500 – 512 000. Speech: 16–64 kbit/s · music: 96 kbit/s+ |
 | `maxBandwidth` | 1105 | 1101 narrowband · 1102 medium · 1103 wideband · 1104 super-wideband · 1105 fullband |
 | `useDtx` | false | silence suppression (no packets while quiet) |
