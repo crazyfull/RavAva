@@ -350,7 +350,7 @@ Re-list devices every time you show a menu and after `SetDeviceLostHandler` fire
 Follow these exactly. Breaking any of them causes crashes or audio glitches.
 
 ### Lifetime and order
-1. `AudioConfig` only needs to outlive the `Start()` / `SetConfig()` calls, but keep it alive anyway until you have stopped the objects.
+1. The objects copy the `AudioConfig`: `Recorder` at `SetConfig()` and again at `Start()` (it rebuilds its encoder from that copy, so changes between the two calls are used consistently), `Player` / `ConferencePlayer` inside `SetConfig()`. After `Start()` returns your struct may change or be destroyed. Keep it alive anyway until you have stopped the objects.
 2. Always call `cfg.Validate()` before `SetConfig()`.
 3. **Config changes need new objects.** `SetConfig` on a running object has no effect: `Stop()` → destroy → create new ones.
    (Volume, gain, devices, adaptive playout, music settings are the live controls — see the API reference.)
@@ -492,6 +492,7 @@ meant for a 1 Hz timer: loss = `stats.lost`, recovered = `stats.fec + stats.plc 
 | `inputRate` / `outputRate` | 48000 | 8000 / 12000 / 16000 / 24000 / 48000. Prefer 48000 for fullband |
 | `channels` | 1 | 1 (mono) or 2 (stereo) |
 | `frameMs` | 20 | 5, 10, 20, 40, 60, 80, 100, 120 (longer = less overhead, more latency) |
+| `maxPacketBytes` | 1194 | hard limit for the Opus payload of one packet (+6 bytes of headers = 1200 on the wire, under the IPv6 minimum MTU). The encoder spends fewer bits to stay under it, so VBR peaks, FEC and DRED cannot cause IP fragmentation. `0` = no limit (up to 1500; the library then only warns). |
 | `Bitrate` | 8000 | bit/s, 500 – 512 000. Speech: 16–64 kbit/s · music: 96 kbit/s+ |
 | `maxBandwidth` | 1105 | 1101 narrowband · 1102 medium · 1103 wideband · 1104 super-wideband · 1105 fullband |
 | `useDtx` | false | silence suppression (no packets while quiet) |

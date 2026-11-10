@@ -48,8 +48,8 @@ public:
     using PacketHandler = std::function<void(const Bytes &datagram)>;
 
 private:
-    AudioConfig *m_pConfig;           // only read by SetConfig() and Start(); after Start() returns the recorder works on its own copy m_cfg
-    AudioConfig m_cfg;                // snapshot taken by Start(): the caller's AudioConfig may change or be destroyed afterwards
+    AudioConfig *m_pConfig;           // read by SetConfig() and Start(); after Start() the recorder works on its own snapshot m_cfg
+    AudioConfig m_cfg;                // snapshot taken by SetConfig() and again by Start() (which rebuilds the encoder from it): the caller's AudioConfig may change or be destroyed after Start()
     std::unique_ptr<OpusCodec> m_pOpus;
     PacketHandler m_handler;
     std::shared_ptr<AudioProcessor> m_aec;   // shared with Player (it feeds the speaker signal)

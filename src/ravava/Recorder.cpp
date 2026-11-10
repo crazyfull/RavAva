@@ -42,8 +42,12 @@ void Recorder::SetAudioProcessor(std::shared_ptr<AudioProcessor> aec)
 void Recorder::SetConfig(AudioConfig *pConfig)
 {
     m_pConfig = pConfig;
-    if(pConfig)
-        SetAndroidCallMode(pConfig->androidCallMode);
+    if(pConfig){
+        m_cfg = *pConfig;                   // (Start() takes the snapshot again and rebuilds the encoder from it)
+        if(!m_deviceWanted && !m_input.IsRunning())
+            m_pOpus.reset();                // a second SetConfig() with other settings rebuilds the encoder
+        SetAndroidCallMode(m_cfg.androidCallMode);
+    }
     init();
 }
 
@@ -53,7 +57,7 @@ void Recorder::init()
         return;
 
     auto codec = std::make_unique<OpusCodec>();
-    if(!codec->InitEncoder(*m_pConfig)){
+    if(!codec->InitEncoder(m_cfg)){
         RAVAVA_WARN("Opus encoder init failed");
         return;
     }
@@ -68,7 +72,15 @@ void Recorder::Start()
     }
     if(m_deviceWanted || m_input.IsRunning())
         return;
-    m_cfg = *m_pConfig;                 // from here on only the copy is used (also by the audio thread)
+    // The snapshot is taken here, again: settings changed after SetConfig() (device id, frameMs, ...) take effect now. The encoder is
+    // rebuilt from the same snapshot, so it and the capture path can never disagree about frameMs / rates.
+    m_cfg = *m_pConfig;
+    m_pOpus.reset();
+    init();
+    if(!m_pOpus){
+        RAVAVA_WARN("Recorder not ready");
+        return;
+    }
 
     const size_t frameChunk = size_t(m_cfg.FrameSamples()) * m_cfg.channels;
     m_cache.clear();

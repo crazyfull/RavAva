@@ -108,10 +108,16 @@ void JitterBuffer::trackArrival(int64_t ext, int64_t arrivalUs)
     if(!m_trInit){
         m_trInit = true;
         m_trBase = tr;
+        m_trLastExt = ext;
         m_env = 0;
         m_trN = 0;
     }else{
-        m_trBase += m_leakUs;           // the two clocks never run exactly alike: let the baseline follow them
+        // the two clocks never run exactly alike: let the baseline follow them. The leak is per elapsed frame (sequence numbers
+        // advance with time also while a DTX / muted sender sends nothing); one packet per frame gives the same value as before
+        const int64_t elapsed = std::min<int64_t>(std::max<int64_t>(ext - m_trLastExt, 1), 100000);
+        if(ext > m_trLastExt)
+            m_trLastExt = ext;
+        m_trBase += m_leakUs * elapsed;
         if(tr < m_trBase)
             m_trBase = tr;
         const int64_t x = tr - m_trBase;
@@ -268,7 +274,26 @@ void JitterBuffer::pushImpl(const uint8_t *datagram, size_t size, int64_t arriva
         // Sender restarted (new talker / app restarted: sequence starts again at 0, always with a marker) or a huge jump:
         // resync. A marker packet that is further behind than the buffer can ever reorder is a restart too; without this
         // a restart at seq 0 would be "too late" until the old sequence number is reached again (minutes of silence).
-        if(std::abs(int(diff)) > 3000 || (marker && int(diff) < -(int(m_maxTarget) + 16))){
+        // A far-away number WITHOUT a marker (a stray packet of an old session, a streamId collision, a forged datagram) is not
+        // believed until 3 close ones follow each other: one outlier must not flush a healthy stream.
+        bool restart = marker && int(diff) < -(int(m_maxTarget) + 16);
+        if(std::abs(int(diff)) > 3000){
+            if(marker){
+                restart = true;
+            }else{
+                const int16_t near = int16_t(uint16_t(seq - m_candSeq));
+                m_candN = (m_candN > 0 && near >= 1 && near <= 16) ? m_candN + 1 : 1;
+                m_candSeq = seq;
+                if(m_candN < 3)
+                    return;                         // ignored
+                restart = true;
+            }
+        }else{
+            m_candN = 0;
+        }
+        if(restart){
+            m_candN = 0;
+            m_dtxSeen = false;              // a new sender: learn again whether it uses DTX
             clearPackets();
             seenReset();
             m_lastTx = tx;

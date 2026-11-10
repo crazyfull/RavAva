@@ -36,7 +36,9 @@ struct AudioConfig
     int channels = 1;
 
     // ---- Opus (most compressed voice profile) ----
-    int frameMs = 20;           //2.5 5 10 20 40 60 (bigger = less overhead, more latency)
+    int frameMs = 20;           //5 10 20 40 60 80 100 120 (bigger = less overhead, more latency; 2.5 ms is not supported)
+    int maxPacketBytes = 1194;  //hard limit for the Opus payload of one packet (VBR peaks, FEC and DRED must fit): 1194 + 6 bytes of headers = 1200 on the wire,
+                                //under the IPv6 minimum MTU. The encoder spends fewer bits to stay under it. 0 = no limit (up to 1500).
     int Bitrate = 8000;         //bps
     bool useDtx = false;        //silence -> no packets
     bool useFec = true;         //inband FEC
@@ -100,7 +102,11 @@ struct AudioConfig
         if(!(frameMs == 5 || frameMs == 10 || frameMs == 20 || frameMs == 40 || frameMs == 60 || frameMs == 80 || frameMs == 100 || frameMs == 120))
             return fail("frameMs (5/10/20/40/60/80/100/120)", frameMs);
         if(Bitrate < 500 || Bitrate > 512000)
-            return fail("opusBitrate (500..512000 bps)", Bitrate);
+            return fail("Bitrate (500..512000 bps)", Bitrate);
+        if(!(outputRate == 8000 || outputRate == 12000 || outputRate == 16000 || outputRate == 24000 || outputRate == 48000))
+            return fail("outputRate (Opus: 8000/12000/16000/24000/48000)", outputRate);
+        if(maxPacketBytes != 0 && (maxPacketBytes < 50 || maxPacketBytes > 1500))
+            return fail("maxPacketBytes (0 = no limit, or 50..1500)", maxPacketBytes);
         if(expectedLossPerc < 0 || expectedLossPerc > 100)
             return fail("expectedLossPerc (0..100)", expectedLossPerc);
         if(dredMs < 0 || dredMs > 1000)
@@ -118,6 +124,8 @@ struct AudioConfig
         long peak = mean * 2;
         if(dredMs > 0)
             peak += mean * dredMs / 200;
+        if(maxPacketBytes > 0 && peak > maxPacketBytes)
+            peak = maxPacketBytes;                  // the encoder is told to stay under it
         return int(peak + 3 + 3);
     }
     static constexpr int MaxDatagramWarnBytes = 1200;   // IPv6 minimum MTU 1280 - IP/UDP headers 48 - a margin
