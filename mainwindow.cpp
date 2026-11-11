@@ -360,8 +360,17 @@ void MainWindow::initAudio()
     });
 
     // the microphone taken by a call / another app (runs on the recorder's watchdog thread; automaticResumeAfterFreeMic restarts it)
-    m_pAudioRecorder->SetMicEventHandler([](MicEvent e, MicReason r){
+    m_pAudioRecorder->SetMicEventHandler([this](MicEvent e, MicReason r){
         qDebug() << "Microphone event:" << (e == MicEvent::Busy ? "busy (cannot start)" : e == MicEvent::Interrupted ? "interrupted" : "free") << "reason" << int(r);
+        // the status bar is red while the microphone is taken (call, other app) and back to normal when it is free again
+        const bool taken = e != MicEvent::Free;
+        QMetaObject::invokeMethod(this, [this, taken]{
+            ui->statusbar->setStyleSheet(taken ? "background-color: red; color: white;" : "");
+            if(taken)
+                ui->statusbar->showMessage(tr("Microphone is taken (call?)"));
+            else
+                ui->statusbar->clearMessage();
+        }, Qt::QueuedConnection);
     });
 
     m_AudioConfig.Bitrate = ui->BitRate_comboBox->currentText().toInt();    //ui->BitRate_comboBox(ui->BitRate_comboBox->currentIndex());
